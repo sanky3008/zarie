@@ -1,0 +1,122 @@
+import os
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from agent.agent import Agent
+from dotenv import load_dotenv
+import asyncio
+
+load_dotenv()
+
+# Shared agent instance for all handlers
+_agent = None
+
+def get_agent():
+    """Get or create the shared agent instance."""
+    global _agent
+    if _agent is None:
+        _agent = Agent()
+    return _agent
+
+class TelegramBot:
+    def __init__(self):
+        """Initialize the Telegram bot with the Agent."""
+        self.agent = get_agent()
+        self.token = os.getenv("TELEGRAM_BOT_TOKEN")
+        
+        if not self.token:
+            raise ValueError("TELEGRAM_BOT_TOKEN not found in environment variables")
+    
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /start command."""
+        await update.message.reply_text(
+            "Hi! I'm Donna Paulsen, your AI assistant. Send me a message and I'll help you out!"
+        )
+    
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the /help command."""
+        await update.message.reply_text(
+            "Just send me any message and I'll respond. That's all you need to know, boss."
+        )
+    
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle incoming messages."""
+        # Get user information
+        user = update.effective_user
+        user_id = str(user.id)  # Using Telegram user ID as the identifier
+        
+        # Note: To get phone number, the user must share their contact explicitly.
+        # You can add a feature to request contact if needed.
+        # For now, we'll use Telegram user ID as the unique identifier.
+        
+        message_text = update.message.text
+        
+        # Send typing action to show the bot is working
+        await update.message.chat.send_action(action="typing")
+        
+        try:
+            # Run the agent invocation in a thread pool to avoid blocking
+            # This allows multiple users to be processed concurrently
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None, 
+                self.agent.invoke, 
+                user_id, 
+                message_text, 
+                "TELEGRAM"
+            )
+            
+            # Send the response back to the user
+            if response and response.get('content'):
+                await update.message.reply_text(response['content'])
+            else:
+                await update.message.reply_text("Sorry, I couldn't process that. Try again?")
+        
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            import traceback
+            traceback.print_exc()
+            await update.message.reply_text(
+                "Oops, something went wrong on my end. Give me a moment and try again."
+            )
+    
+    async def handle_contact(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle when a user shares their contact (optional feature)."""
+        contact = update.message.contact
+        if contact and contact.phone_number:
+            # Store phone number mapping if needed
+            # For now, just acknowledge
+            await update.message.reply_text(
+                f"Thanks for sharing your contact! I've noted your number: {contact.phone_number}"
+            )
+    
+    def run(self):
+        """Start the Telegram bot."""
+        # Create the Application
+        app = Application.builder().token(self.token).build()
+        
+        # Register command handlers
+        app.add_handler(CommandHandler("start", self.start_command))
+        app.add_handler(CommandHandler("help", self.help_command))
+        
+        # Register message handler for text messages
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+        
+        # Optional: Register handler for contact sharing
+        app.add_handler(MessageHandler(filters.CONTACT, self.handle_contact))
+        
+        print("Telegram bot is running...")
+        print("Press Ctrl+C to stop")
+        
+        # Start the bot
+        app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+def main():
+    """Main function to start the Telegram bot."""
+    bot = TelegramBot()
+    bot.run()
+
+
+if __name__ == "__main__":
+    main()
+
