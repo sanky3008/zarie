@@ -32,7 +32,9 @@ class Agent:
         
         response = self.client.responses.create(
             model="gpt-5-nano",
-            instructions=SYSTEM_PROMPT,
+            prompt={
+                "id": "pmpt_68e4d02f6ab08195a6621108115f8aca015cb2eaf85af6ca"
+            },
             tools=[{ "type": "web_search_preview" }],
             input=context
         )
