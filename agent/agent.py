@@ -1,4 +1,4 @@
-from openai import OpenAI
+import litellm
 from state.state import State
 import json
 from agent.prompt import SYSTEM_PROMPT
@@ -8,9 +8,9 @@ load_dotenv()
 
 class Agent:
     def __init__(self, db_path='chats.db'):
-        """Initialize the Agent with a State object and OpenAI client."""
+        """Initialize the Agent with a State object and LiteLLM client."""
         self.state = State(db_path=db_path)
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # LiteLLM reads OPENAI_API_KEY from environment variables automatically
 
     def invoke(self, user_id, message, medium):
         """Invoke the agent with a user message and medium."""
@@ -28,29 +28,38 @@ class Agent:
         context_blob = self.state.get_context(user_id)
         context = json.loads(context_blob) if context_blob else []
         
-        # Call the OpenAI Responses API
+        # Convert context to LiteLLM messages format
+        messages = []
+        for item in context:
+            if item.get("type") == "message":
+                messages.append({
+                    "role": item["role"],
+                    "content": item["content"]
+                })
         
-        response = self.client.responses.create(
-            model="gpt-5-nano",
-            prompt={
-                "id": "pmpt_68e4d02f6ab08195a6621108115f8aca015cb2eaf85af6ca"
-            },
-            tools=[{ "type": "web_search_preview" }],
-            input=context
+        # Add system prompt if available
+        if SYSTEM_PROMPT:
+            messages.insert(0, {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            })
+        
+        # Call LiteLLM completion API
+        response = litellm.completion(
+            model="deepseek/deepseek-chat",  # Using a standard model name
+            messages=messages
         )
 
-        # Extract all output items from the response (assistant messages and tool calls)
-        for output_item in response.output:
-            if hasattr(output_item, 'type'):
-                # Handle message type
-                if output_item.type == 'message':
-                    message_obj = {
-                        "type": "message",
-                        "role": output_item.role,
-                        "content": output_item.content[0].text if output_item.content else ""
-                    }
-                    self.state.add_context(user_id, message_obj)
-                    assistant_message = message_obj
+        # Extract the assistant message from the response
+        assistant_message_content = response.choices[0].message.content
+        assistant_message = {
+            "type": "message",
+            "role": "assistant",
+            "content": assistant_message_content
+        }
+        
+        # Add the assistant message to context
+        self.state.add_context(user_id, assistant_message)
         
         return assistant_message
 
