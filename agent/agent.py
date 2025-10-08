@@ -4,6 +4,7 @@ import json
 from agent.prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 load_dotenv()
 
 class Agent:
@@ -12,13 +13,21 @@ class Agent:
         self.state = State(db_path=db_path)
         # LiteLLM reads OPENAI_API_KEY from environment variables automatically
 
-    def invoke(self, user_id, message, medium):
+    def invoke(self, user_id, message, medium, timestamp=None):
         """Invoke the agent with a user message and medium."""
-        # Create a user message object with medium appended to content
+        # Use provided timestamp or current time
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        # Format date and time
+        date_str = timestamp.strftime("%dth %b %Y")
+        time_str = timestamp.strftime("%H:%M")
+        
+        # Create a user message object with date, time, and medium information
         user_message = {
             "type": "message",
             "role": "user",
-            "content": f"{message} (medium: {medium})"
+            "content": f"Date: {date_str}, Time: {time_str}, Medium: {medium}\nMessage: {message}"
         }
         
         # Add the user message to the context

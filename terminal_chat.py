@@ -1,4 +1,5 @@
 from agent.agent import Agent
+from datetime import datetime
 
 def main():
     """Terminal chat application using the Agent."""
@@ -23,8 +24,8 @@ def main():
         if not user_input:
             continue
         
-        # Get response from agent
-        response = agent.invoke(user_id, user_input, medium)
+        # Get response from agent with current timestamp
+        response = agent.invoke(user_id, user_input, medium, datetime.now())
         
         # Display the response
         if response:

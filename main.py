@@ -4,6 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from agent.agent import Agent
 from dotenv import load_dotenv
 import asyncio
+from datetime import datetime
 
 load_dotenv()
 
@@ -54,6 +55,9 @@ class TelegramBot:
         await update.message.chat.send_action(action="typing")
         
         try:
+            # Get the message timestamp
+            message_timestamp = update.message.date
+            
             # Run the agent invocation in a thread pool to avoid blocking
             # This allows multiple users to be processed concurrently
             loop = asyncio.get_event_loop()
@@ -62,7 +66,8 @@ class TelegramBot:
                 self.agent.invoke, 
                 user_id, 
                 message_text, 
-                "TELEGRAM"
+                "TELEGRAM",
+                message_timestamp
             )
             
             # Send the response back to the user
