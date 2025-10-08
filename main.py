@@ -4,7 +4,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from agent.agent import Agent
 from dotenv import load_dotenv
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 load_dotenv()
 
@@ -55,8 +55,10 @@ class TelegramBot:
         await update.message.chat.send_action(action="typing")
         
         try:
-            # Get the message timestamp
-            message_timestamp = update.message.date
+            # Get the message timestamp and convert from UTC to IST
+            message_timestamp_utc = update.message.date
+            IST = timezone(timedelta(hours=5, minutes=30))
+            message_timestamp_ist = message_timestamp_utc.astimezone(IST)
             
             # Run the agent invocation in a thread pool to avoid blocking
             # This allows multiple users to be processed concurrently
@@ -67,7 +69,7 @@ class TelegramBot:
                 user_id, 
                 message_text, 
                 "TELEGRAM",
-                message_timestamp
+                message_timestamp_ist
             )
             
             # Send the response back to the user
