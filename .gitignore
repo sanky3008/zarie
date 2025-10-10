@@ -63,5 +63,6 @@ htmlcov/
 *.zip
 
 # Migration Scripts (temporary)
-migrate_context_format.py
-cleanup_incomplete_tool_calls.py
+scripts/
+scripts/migrate_context_format.py
+scripts/cleanup_incomplete_tool_calls.py
