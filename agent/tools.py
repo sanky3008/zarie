@@ -1,29 +1,32 @@
-import os
-from tavily import TavilyClient
-
+from perplexity import Perplexity
 from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def web_search(query: str):
     """
-    Perform a web search using Tavily API.
+    Perform a web search using Perplexity API.
     
     Args:
         query (str): The search query
         
     Returns:
-        dict: Search results from Tavily
+        str: Search results from Perplexity
     """
-    # Get API key from environment variable
-    api_key = os.getenv('TAVILY_API_KEY')
-    if not api_key:
-        raise ValueError("TAVILY_API_KEY environment variable is required")
+    client = Perplexity()
     
-    # Initialize Tavily client
-    tavily_client = TavilyClient(api_key=api_key)
+    completion = client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": query,
+            }
+        ],
+        model="sonar",
+    )
     
-    # Execute search
-    response = tavily_client.search(query)
-    
-    return response
+    return completion.choices[0].message.content
+
+if __name__ == "__main__":
+    print(web_search("dairy free hot chocolate restaurants Sarjapur Road Bangalore"))
