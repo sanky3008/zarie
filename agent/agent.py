@@ -85,6 +85,19 @@ class Agent:
                     "role": item["role"],
                     "content": item["content"]
                 })
+            elif item.get("type") == "tool_call_request":
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": item["tool_calls"]
+                })
+            elif item.get("type") == "tool_call_response":
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": item["tool_call_id"],
+                    "name": item["name"],
+                    "content": item["content"]
+                })
         
         # Add system prompt if available
         if SYSTEM_PROMPT:
