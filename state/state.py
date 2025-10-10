@@ -69,8 +69,14 @@ class State:
             else:
                 return row[0] if row else None
     
-    def add_context(self, user_id, response):
-        """Add context for a given user_id."""
+    def add_context(self, user_id, response_or_responses):
+        """Add context for a given user_id. Can handle single response or list of responses."""
+        # Normalize input to always be a list
+        if isinstance(response_or_responses, list):
+            responses = response_or_responses
+        else:
+            responses = [response_or_responses]
+        
         with self.lock:
             # Get the current context
             if self.db_type == 'postgres':
@@ -91,8 +97,8 @@ class State:
             else:
                 context = []
             
-            # Append the response to the context
-            context.append(response)
+            # Append all responses to the context atomically
+            context.extend(responses)
             
             # Save the updated context back to the database
             context_json = json.dumps(context)

@@ -101,7 +101,7 @@ class Agent:
             
             # Check if the model wants to call tools
             if assistant_msg.tool_calls:
-                # Store tool call request in context (LiteLLM format)
+                # Prepare tool call request
                 tool_call_request = {
                     "role": "assistant",
                     "content": None,
@@ -117,11 +117,33 @@ class Agent:
                         for tc in assistant_msg.tool_calls
                     ]
                 }
-                self.state.add_context(user_id, tool_call_request)
                 
-                # Process tool calls and add results to messages
+                # Execute tool calls and collect responses
+                tool_responses = []
+                for tool_call in assistant_msg.tool_calls:
+                    function_name = tool_call.function.name
+                    function_args = json.loads(tool_call.function.arguments)
+                    
+                    # Execute the tool function
+                    if function_name in self.tool_functions:
+                        tool_result = self.tool_functions[function_name](**function_args)
+                        
+                        # Prepare tool response
+                        tool_response = {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": function_name,
+                            "content": json.dumps(tool_result)
+                        }
+                        tool_responses.append(tool_response)
+                
+                # Store tool call request and all responses atomically
+                all_tool_messages = [tool_call_request] + tool_responses
+                self.state.add_context(user_id, all_tool_messages)
+                
+                # Add to messages for current conversation
                 messages.append(assistant_msg)
-                self._execute_tool_calls(assistant_msg.tool_calls, messages, user_id)
+                messages.extend(tool_responses)
                 continue
             else:
                 # No tool calls, return the final response (LiteLLM format)
@@ -130,30 +152,4 @@ class Agent:
                     "content": assistant_msg.content
                 }
     
-    def _execute_tool_calls(self, tool_calls, messages, user_id):
-        """Execute tool calls and add results to messages array."""
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            function_args = json.loads(tool_call.function.arguments)
-            
-            # Execute the tool function
-            if function_name in self.tool_functions:
-                tool_result = self.tool_functions[function_name](**function_args)
-                
-                # Store tool call response in context (LiteLLM format)
-                tool_call_response = {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": function_name,
-                    "content": json.dumps(tool_result)
-                }
-                self.state.add_context(user_id, tool_call_response)
-                
-                # Add tool result to messages
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": function_name,
-                    "content": json.dumps(tool_result)
-                })
 
