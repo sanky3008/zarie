@@ -66,38 +66,15 @@ class Agent:
         time_str = timestamp.strftime("%H:%M")
         
         return {
-            "type": "message",
             "role": "user",
             "content": f"Date: {date_str}, Time: {time_str}, Medium: {medium}\nMessage: {message}"
         }
     
     def _prepare_messages(self, user_id):
         """Prepare messages array for LLM from context."""
-        # Get context from state
+        # Get context from state - it's already in LiteLLM format!
         context_blob = self.state.get_context(user_id)
-        context = json.loads(context_blob) if context_blob else []
-        
-        # Convert context to LiteLLM messages format
-        messages = []
-        for item in context:
-            if item.get("type") == "message":
-                messages.append({
-                    "role": item["role"],
-                    "content": item["content"]
-                })
-            elif item.get("type") == "tool_call_request":
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": item["tool_calls"]
-                })
-            elif item.get("type") == "tool_call_response":
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": item["tool_call_id"],
-                    "name": item["name"],
-                    "content": item["content"]
-                })
+        messages = json.loads(context_blob) if context_blob else []
         
         # Add system prompt if available
         if SYSTEM_PROMPT:
@@ -112,6 +89,7 @@ class Agent:
         """Run ReAct loop until we get a normal response (no tool calls)."""
         while True:
             # Call LLM with tools
+            # print(messages)
             response = litellm.completion(
                 model="deepseek/deepseek-chat",
                 messages=messages,
@@ -123,13 +101,14 @@ class Agent:
             
             # Check if the model wants to call tools
             if assistant_msg.tool_calls:
-                # Store tool call request in context
+                # Store tool call request in context (LiteLLM format)
                 tool_call_request = {
-                    "type": "tool_call_request",
                     "role": "assistant",
+                    "content": None,
                     "tool_calls": [
                         {
                             "id": tc.id,
+                            "type": "function",
                             "function": {
                                 "name": tc.function.name,
                                 "arguments": tc.function.arguments
@@ -145,9 +124,8 @@ class Agent:
                 self._execute_tool_calls(assistant_msg.tool_calls, messages, user_id)
                 continue
             else:
-                # No tool calls, return the final response
+                # No tool calls, return the final response (LiteLLM format)
                 return {
-                    "type": "message",
                     "role": "assistant",
                     "content": assistant_msg.content
                 }
@@ -162,13 +140,12 @@ class Agent:
             if function_name in self.tool_functions:
                 tool_result = self.tool_functions[function_name](**function_args)
                 
-                # Store tool call response in context
+                # Store tool call response in context (LiteLLM format)
                 tool_call_response = {
-                    "type": "tool_call_response",
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "name": function_name,
-                    "content": tool_result
+                    "content": json.dumps(tool_result)
                 }
                 self.state.add_context(user_id, tool_call_response)
                 
