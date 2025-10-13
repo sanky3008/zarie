@@ -4,8 +4,12 @@ import threading
 import os
 
 class State:
-    def __init__(self, db_path='chats.db'):
+    def __init__(self, db_path=None):
         """Initialize the State class and connect to the database."""
+        # Default to parent directory for local development
+        if db_path is None:
+            # Go up two levels from state.py -> state/ -> alpha-v0.1/ -> Donna/
+            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'chats.db')
         self.db_path = db_path
         self.lock = threading.Lock()
         

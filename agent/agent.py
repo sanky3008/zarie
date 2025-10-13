@@ -9,8 +9,12 @@ from agent.tools import web_search
 load_dotenv()
 
 class Agent:
-    def __init__(self, db_path='chats.db'):
+    def __init__(self, db_path=None):
         """Initialize the Agent with a State object and LiteLLM client."""
+        # Default to parent directory for local development
+        if db_path is None:
+            # Go up two levels from agent.py -> agent/ -> alpha-v0.1/ -> Donna/
+            db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'chats.db')
         self.state = State(db_path=db_path)
         # LiteLLM reads OPENAI_API_KEY from environment variables automatically
         
