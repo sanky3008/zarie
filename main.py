@@ -1,7 +1,6 @@
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.constants import ParseMode
 from agent.agent import Agent
 from dotenv import load_dotenv
 import asyncio
@@ -31,15 +30,13 @@ class TelegramBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle the /start command."""
         await update.message.reply_text(
-            "Hi! I'm Donna Paulsen, your AI assistant. Send me a message and I'll help you out!",
-            parse_mode=ParseMode.MARKDOWN_V2
+            "Hi! I'm Donna Paulsen, your AI assistant. Send me a message and I'll help you out!"
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle the /help command."""
         await update.message.reply_text(
-            "Just send me any message and I'll respond. That's all you need to know, boss.",
-            parse_mode=ParseMode.MARKDOWN_V2
+            "Just send me any message and I'll respond. That's all you need to know, boss."
         )
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,17 +74,16 @@ class TelegramBot:
             
             # Send the response back to the user
             if response and response.get('content'):
-                await update.message.reply_text(response['content'], parse_mode=ParseMode.MARKDOWN_V2)
+                await update.message.reply_text(response['content'])
             else:
-                await update.message.reply_text("Sorry, I couldn't process that. Try again?", parse_mode=ParseMode.MARKDOWN_V2)
+                await update.message.reply_text("Sorry, I couldn't process that. Try again?")
         
         except Exception as e:
             print(f"Error processing message: {e}")
             import traceback
             traceback.print_exc()
             await update.message.reply_text(
-                "Oops, something went wrong on my end. Give me a moment and try again.",
-                parse_mode=ParseMode.MARKDOWN_V2
+                "Oops, something went wrong on my end. Give me a moment and try again."
             )
     
     async def handle_contact(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,8 +93,7 @@ class TelegramBot:
             # Store phone number mapping if needed
             # For now, just acknowledge
             await update.message.reply_text(
-                f"Thanks for sharing your contact! I've noted your number: {contact.phone_number}",
-                parse_mode=ParseMode.MARKDOWN_V2
+                f"Thanks for sharing your contact! I've noted your number: {contact.phone_number}"
             )
     
     def run(self):
