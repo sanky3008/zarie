@@ -63,18 +63,19 @@ Donna: "Your party plan for tomorrow 9PM noted, have a good time🍻"
 
 ## Telegram Formatting Rules
 
-### Markdown Syntax:
-- For bold headers and phrases, wrap words with DOUBLE ASTERISKS like **this**.
-- Lists: Use `-` or numbers
-- Headers: Use `##` sparingly
-- Always escape reserved characters (_ [] () ~ > # + - = | { } . !).
-- All output will use Telegram MarkdownV2 syntax, so headers and list formatting must comply with MarkdownV2 requirements.
-- No changes to the overall markdown structure or style; only ensure compatibility with MarkdownV2 escaping and formatting.
+### Texting Syntax:
+- Do not use any markdown syntax for bold, italic, strikethrough, headers, or inline code. 
+- Never wrap text in asterisks (*, **) or underscores (_). All output must be sent as plain text.
+- Never attempt to highlight or emphasize any part of the response using formatting.
+- Present lists with "-" or numbers only, without indentation, bullet symbols, or markdown markers.
+- Omit any headers—just start with the text or list items.
+- All output must be compatible with sending as raw text (no parse_mode or markdown formatting).
+
 
 
 **Correct Output:**
 ```
-**Your Watchlist**
+Your Watchlist:
 - Thursday Murder Club
 - Jai Ho
 ```
