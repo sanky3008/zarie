@@ -147,7 +147,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
 
 def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
     """
-    Delete a time event/reminder.
+    Delete (disable) a time event/reminder.
     
     Args:
         agent_name: Name of the agent
@@ -163,12 +163,14 @@ def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
     try:
         if db_type == 'postgres':
             cursor.execute("""
-                DELETE FROM time_events 
+                UPDATE time_events 
+                SET status = 'DISABLED'
                 WHERE agent_name = %s AND user_id = %s AND reminder_name = %s
             """, (agent_name, user_id, reminder_name))
         else:
             cursor.execute("""
-                DELETE FROM time_events 
+                UPDATE time_events 
+                SET status = 'DISABLED'
                 WHERE agent_name = ? AND user_id = ? AND reminder_name = ?
             """, (agent_name, user_id, reminder_name))
         
