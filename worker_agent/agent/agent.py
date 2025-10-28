@@ -154,8 +154,8 @@ class WorkerAgent:
         # System messages don't need date/time formatting
         if medium == "system":
             return {
-                "role": "system",
-                "content": message
+                "role": "user",
+                "content": f"[A time-event has been triggered. Please execute the task and send the response back to Donna.]\nMessage: {message}"
             }
         
         date_str = timestamp.strftime("%dth %b %Y")

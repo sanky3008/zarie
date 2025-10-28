@@ -95,8 +95,8 @@ class Agent:
         # System messages don't need date/time formatting
         if medium == "system":
             return {
-                "role": "system",
-                "content": message
+                "role": "user",
+                "content": f"[This is a message from a worker agent. Respond to the user accordingly]\nMessage: {message}"
             }
         
         date_str = timestamp.strftime("%dth %b %Y")
