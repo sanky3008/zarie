@@ -68,6 +68,27 @@ def update_next_trigger(event_id, recurrence_rule):
     cursor = conn.cursor()
     
     try:
+        # First, get the current next_trigger_timestamp
+        if db_type == 'postgres':
+            cursor.execute("""
+                SELECT next_trigger_timestamp FROM time_events WHERE id = %s
+            """, (event_id,))
+        else:
+            cursor.execute("""
+                SELECT next_trigger_timestamp FROM time_events WHERE id = ?
+            """, (event_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            print(f"Event {event_id} not found")
+            return
+        
+        current_trigger = row[0] if db_type == 'postgres' else row[0]
+        dtstart = parse(current_trigger) if isinstance(current_trigger, str) else current_trigger
+        
+        print(f"  Updating next trigger from: {dtstart}")
+        print(f"  RRULE: {recurrence_rule}")
+        
         # Parse RRULE string
         rule_dict = {}
         for part in recurrence_rule.split(';'):
@@ -87,11 +108,45 @@ def update_next_trigger(event_id, recurrence_rule):
         }
         
         freq = freq_map.get(rule_dict.get('FREQ', 'DAILY'))
-        now = datetime.now()
         
-        # Generate next occurrence
-        rule = rrule_module.rrule(freq, dtstart=now, count=2)
-        next_occurrence = list(rule)[1]
+        # Parse additional RRULE parameters
+        rrule_kwargs = {'freq': freq, 'dtstart': dtstart}
+        
+        if 'INTERVAL' in rule_dict:
+            rrule_kwargs['interval'] = int(rule_dict['INTERVAL'])
+        
+        if 'BYDAY' in rule_dict:
+            rrule_kwargs['byweekday'] = [rrule_module.weekday(day) for day in rule_dict['BYDAY'].split(',')]
+        
+        if 'BYMONTHDAY' in rule_dict:
+            rrule_kwargs['bymonthday'] = [int(day) for day in rule_dict['BYMONTHDAY'].split(',')]
+        
+        if 'BYMONTH' in rule_dict:
+            rrule_kwargs['bymonth'] = [int(month) for month in rule_dict['BYMONTH'].split(',')]
+        
+        if 'UNTIL' in rule_dict:
+            rrule_kwargs['until'] = parse(rule_dict['UNTIL'])
+        
+        if 'COUNT' in rule_dict:
+            rrule_kwargs['count'] = int(rule_dict['COUNT'])
+        
+        # Generate next occurrence using .after() method (much more efficient!)
+        try:
+            rule = rrule_module.rrule(**rrule_kwargs)
+            # Use .after() to get the next occurrence after dtstart
+            next_occurrence = rule.after(dtstart)
+            
+            if next_occurrence is None:
+                print(f"  Warning: No next occurrence found, using fallback")
+                from datetime import timedelta
+                next_occurrence = dtstart + timedelta(days=1)
+        except Exception as e:
+            print(f"  Error calculating RRULE: {e}")
+            # Fallback: add 1 day
+            from datetime import timedelta
+            next_occurrence = dtstart + timedelta(days=1)
+        
+        print(f"  Next occurrence: {next_occurrence}")
         
         # Update database
         if db_type == 'postgres':
@@ -108,6 +163,11 @@ def update_next_trigger(event_id, recurrence_rule):
             """, (next_occurrence.isoformat(), event_id))
         
         conn.commit()
+        print(f"  ✓ Updated next trigger to {next_occurrence}")
+    except Exception as e:
+        print(f"  ✗ Error updating next trigger: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         conn.close()
 

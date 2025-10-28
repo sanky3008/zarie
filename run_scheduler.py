@@ -30,7 +30,7 @@ async def process_event(event, worker_agent, donna):
         print(f"Processing: {reminder_name} for user {user_id}")
         
         # Add timeout to prevent hanging (60 seconds max per event)
-        async with asyncio.timeout(60):
+        async def process_single_event():
             # Step 1: Invoke worker agent with system message
             system_message = f"REMINDER TRIGGERED: {event['message']}. Please execute the task and send the response back to Donna."
             worker_response = worker_agent.invoke(
@@ -62,6 +62,8 @@ async def process_event(event, worker_agent, donna):
             else:
                 disable_event(event_id)
                 print(f"  ✓ Disabled one-time event")
+        
+        await asyncio.wait_for(process_single_event(), timeout=60)
     
     except asyncio.TimeoutError:
         print(f"  ✗ Timeout processing {event.get('reminder_name', 'unknown')}")
@@ -74,7 +76,7 @@ async def main():
     
     try:
         # Maximum 4 minutes for entire job (Railway CRON runs every 5 mins)
-        async with asyncio.timeout(240):
+        async def run_scheduler():
             # Get due events
             events = get_due_events()
             print(f"Found {len(events)} due event(s)")
@@ -92,6 +94,8 @@ async def main():
             await asyncio.gather(*tasks, return_exceptions=True)
             
             print("✓ Scheduler completed\n")
+        
+        await asyncio.wait_for(run_scheduler(), timeout=240)
     
     except asyncio.TimeoutError:
         print("✗ Scheduler timeout - took longer than 4 minutes\n")
