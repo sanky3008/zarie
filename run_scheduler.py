@@ -20,7 +20,7 @@ async def send_telegram_message(user_id: str, message: str):
     await bot.send_message(chat_id=user_id, text=message)
 
 async def process_event(event, worker_agent, donna):
-    """Process a single time event"""
+    """Process a single time event with timeout"""
     try:
         event_id = event['id']
         agent_name = event['agent_name']
@@ -29,58 +29,79 @@ async def process_event(event, worker_agent, donna):
         
         print(f"Processing: {reminder_name} for user {user_id}")
         
-        # Step 1: Invoke worker agent with system message
-        system_message = f"REMINDER TRIGGERED: {event['message']}"
-        worker_response = worker_agent.invoke(
-            agent_name=agent_name,
-            user_id=user_id,
-            message=system_message,
-            medium="system"
-        )
-        
-        # Step 2: Send worker response to Donna
-        donna_message = f"This is {agent_name}. {worker_response['content']}"
-        donna_response = donna.invoke(
-            user_id=user_id,
-            message=donna_message,
-            medium="system"
-        )
-        
-        # Step 3: Send Donna's response to user via Telegram
-        await send_telegram_message(user_id, donna_response['content'])
-        
-        # Step 4: Update or disable event
-        if event['is_recurring'] and event['recurrence_rule']:
-            update_next_trigger(event_id, event['recurrence_rule'])
-            print(f"  ✓ Updated next trigger")
-        else:
-            disable_event(event_id)
-            print(f"  ✓ Disabled one-time event")
+        # Add timeout to prevent hanging (60 seconds max per event)
+        async with asyncio.timeout(60):
+            # Step 1: Invoke worker agent with system message
+            system_message = f"REMINDER TRIGGERED: {event['message']}"
+            worker_response = worker_agent.invoke(
+                agent_name=agent_name,
+                user_id=user_id,
+                message=system_message,
+                medium="system"
+            )
             
+            # Step 2: Send worker response to Donna
+            donna_message = f"This is {agent_name}. {worker_response['content']}"
+            donna_response = donna.invoke(
+                user_id=user_id,
+                message=donna_message,
+                medium="system"
+            )
+            
+            # Step 3: Send Donna's response to user via Telegram
+            await send_telegram_message(user_id, donna_response['content'])
+            
+            # Step 4: Update or disable event
+            if event['is_recurring'] and event['recurrence_rule']:
+                update_next_trigger(event_id, event['recurrence_rule'])
+                print(f"  ✓ Updated next trigger")
+            else:
+                disable_event(event_id)
+                print(f"  ✓ Disabled one-time event")
+    
+    except asyncio.TimeoutError:
+        print(f"  ✗ Timeout processing {event.get('reminder_name', 'unknown')}")
     except Exception as e:
         print(f"  ✗ Error: {e}")
 
 async def main():
-    """Main scheduler function"""
+    """Main scheduler function with overall timeout"""
     print(f"\n🕐 Scheduler running at {datetime.now()}")
     
-    # Get due events
-    events = get_due_events()
-    print(f"Found {len(events)} due event(s)")
+    try:
+        # Maximum 4 minutes for entire job (Railway CRON runs every 5 mins)
+        async with asyncio.timeout(240):
+            # Get due events
+            events = get_due_events()
+            print(f"Found {len(events)} due event(s)")
+            
+            if not events:
+                print("✓ No events to process\n")
+                return
+            
+            # Initialize agents
+            worker_agent = WorkerAgent()
+            donna = Agent()
+            
+            # Process all events concurrently
+            tasks = [process_event(event, worker_agent, donna) for event in events]
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+            print("✓ Scheduler completed\n")
     
-    if not events:
-        return
-    
-    # Initialize agents
-    worker_agent = WorkerAgent()
-    donna = Agent()
-    
-    # Process all events concurrently
-    tasks = [process_event(event, worker_agent, donna) for event in events]
-    await asyncio.gather(*tasks)
-    
-    print("✓ Scheduler completed\n")
+    except asyncio.TimeoutError:
+        print("✗ Scheduler timeout - took longer than 4 minutes\n")
+    except Exception as e:
+        print(f"✗ Scheduler error: {e}\n")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n⚠️  Scheduler interrupted\n")
+    except Exception as e:
+        print(f"\n✗ Fatal error: {e}\n")
+    finally:
+        # Ensure script always exits cleanly
+        print("Scheduler exiting...\n")
 
