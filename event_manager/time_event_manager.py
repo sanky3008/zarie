@@ -7,35 +7,23 @@ from dateutil.parser import parse
 def get_db_connection():
     """Get database connection"""
     database_url = os.getenv('DATABASE_URL')
-    print(f"DEBUG: DATABASE_URL exists: {bool(database_url)}")
     
     if database_url:
-        try:
-            import psycopg2
-            print("DEBUG: Attempting PostgreSQL connection")
-            conn = psycopg2.connect(database_url)
-            print("DEBUG: PostgreSQL connection successful")
-            return conn, 'postgres'
-        except Exception as e:
-            print(f"DEBUG: PostgreSQL connection failed: {e}")
-            raise
+        import psycopg2
+        conn = psycopg2.connect(database_url)
+        return conn, 'postgres'
     else:
-        print("DEBUG: Using SQLite fallback")
         db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'chats.db')
         conn = sqlite3.connect(db_path)
         return conn, 'sqlite'
 
 def get_due_events():
     """Get all time events due within the next 5 minutes"""
-    print("DEBUG: Starting get_due_events()")
     conn, db_type = get_db_connection()
     cursor = conn.cursor()
     
     now = datetime.now()
     five_mins_later = now + timedelta(minutes=5)
-    print(f"DEBUG: Current time: {now}")
-    print(f"DEBUG: Looking for events before: {five_mins_later}")
-    print(f"DEBUG: Database type: {db_type}")
     
     try:
         if db_type == 'postgres':
@@ -48,10 +36,7 @@ def get_due_events():
                 AND next_trigger_timestamp <= %s
             """, (five_mins_later.isoformat(),))
             rows = cursor.fetchall()
-            print(f"DEBUG: PostgreSQL query returned {len(rows)} rows")
-            if rows:
-                print(f"DEBUG: First row: {rows[0]}")
-            result = [
+            return [
                 {
                     'id': row[0],
                     'agent_name': row[1],
@@ -64,8 +49,6 @@ def get_due_events():
                 }
                 for row in rows
             ]
-            print(f"DEBUG: Returning {len(result)} events")
-            return result
         else:
             cursor.execute("""
                 SELECT id, agent_name, user_id, reminder_name, 
@@ -76,10 +59,7 @@ def get_due_events():
                 AND next_trigger_timestamp <= ?
             """, (five_mins_later.isoformat(),))
             rows = cursor.fetchall()
-            print(f"DEBUG: SQLite query returned {len(rows)} rows")
-            if rows:
-                print(f"DEBUG: First row: {rows[0]}")
-            result = [
+            return [
                 {
                     'id': row[0],
                     'agent_name': row[1],
@@ -92,13 +72,6 @@ def get_due_events():
                 }
                 for row in rows
             ]
-            print(f"DEBUG: Returning {len(result)} events")
-            return result
-    except Exception as e:
-        print(f"DEBUG: Exception in get_due_events: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
     finally:
         conn.close()
 

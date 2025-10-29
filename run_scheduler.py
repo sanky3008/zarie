@@ -2,15 +2,25 @@
 """
 Railway CRON job to trigger time-based events and send reminders
 """
+import sys
 import asyncio
 import os
 from datetime import datetime
-from telegram import Bot
-from dotenv import load_dotenv
 
-from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event
-from worker_agent.agent.agent import WorkerAgent
-from agent.agent import Agent
+print("=== SCHEDULER STARTING ===", flush=True)
+
+try:
+    from telegram import Bot
+    from dotenv import load_dotenv
+    from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event
+    from worker_agent.agent.agent import WorkerAgent
+    from agent.agent import Agent
+    print("✓ All imports successful", flush=True)
+except Exception as e:
+    print(f"✗ Import error: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
 
 load_dotenv()
 
@@ -72,31 +82,13 @@ async def process_event(event, worker_agent, donna):
 
 async def main():
     """Main scheduler function with overall timeout"""
-    print(f"\n🕐 Scheduler running at {datetime.now()}")
-    
-    # Debug: Check environment variables
-    print(f"DEBUG: DATABASE_URL exists: {bool(os.getenv('DATABASE_URL'))}")
-    print(f"DEBUG: TELEGRAM_BOT_TOKEN exists: {bool(os.getenv('TELEGRAM_BOT_TOKEN'))}")
+    print(f"\n🕐 Scheduler running at {datetime.now()}", flush=True)
     
     try:
         # Maximum 4 minutes for entire job (Railway CRON runs every 5 mins)
         async def run_scheduler():
-            print("DEBUG: Starting run_scheduler function")
-            
             # Get due events
-            print("DEBUG: Calling get_due_events()")
-            try:
-                events = get_due_events()
-                print(f"DEBUG: get_due_events() returned: {type(events)} with {len(events)} items")
-                if events:
-                    print(f"DEBUG: First event type: {type(events[0])}")
-                    print(f"DEBUG: First event content: {events[0]}")
-            except Exception as e:
-                print(f"DEBUG: Error in get_due_events(): {e}")
-                import traceback
-                traceback.print_exc()
-                return
-            
+            events = get_due_events()
             print(f"Found {len(events)} due event(s)")
             
             if not events:
