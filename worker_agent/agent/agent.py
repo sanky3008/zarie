@@ -60,7 +60,7 @@ class WorkerAgent:
                         "properties": {
                             "next_trigger_timestamp": {
                                 "type": "string",
-                                "description": "Next trigger time in ISO format (e.g., 2025-10-28T14:30:00)"
+                                "description": "Next trigger time in ISO format (e.g., 2025-10-28T14:30:00). Use IST Timezone for the next trigger timestamp."
                             },
                             "is_recurring": {
                                 "type": "boolean",
