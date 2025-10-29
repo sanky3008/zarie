@@ -5,7 +5,7 @@ from agent.prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
 import os
 from datetime import datetime
-from agent.tools import web_search
+from agent.tools import web_search, invoke_worker_agent
 load_dotenv()
 
 class Agent:
@@ -21,7 +21,8 @@ class Agent:
         # Initialize tools and tool functions
         self.tools = self._get_tools()
         self.tool_functions = {
-            "web_search": web_search
+            "web_search": web_search,
+            "invoke_worker_agent": invoke_worker_agent
         }
     
     def _get_tools(self):
@@ -41,6 +42,31 @@ class Agent:
                             }
                         },
                         "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "invoke_worker_agent",
+                    "description": "Create or invoke a worker agent to handle automated workflows, reminders, and recurring tasks. Use this when the user asks to set up reminders, schedule events, or needs automated task management. Each worker agent maintains its own context and can use tools like web search and time event management.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "agent_name": {
+                                "type": "string",
+                                "description": "Unique name for the worker agent (e.g., 'reminder_agent', 'cricket_tracker', 'task_manager'). Use descriptive names that reflect the agent's purpose."
+                            },
+                            "purpose": {
+                                "type": "string",
+                                "description": "Brief description of what this agent is responsible for (e.g., 'Handle weekly reminders', 'Track cricket scores', 'Manage daily tasks')"
+                            },
+                            "message": {
+                                "type": "string",
+                                "description": "The instruction or task to give to the worker agent"
+                            }
+                        },
+                        "required": ["agent_name", "purpose", "message"]
                     }
                 }
             }
@@ -66,6 +92,13 @@ class Agent:
     
     def _create_user_message(self, message, medium, timestamp):
         """Create a formatted user message with date, time, and medium."""
+        # System messages don't need date/time formatting
+        if medium == "system":
+            return {
+                "role": "user",
+                "content": f"[This is a message from a worker agent. Respond to the user accordingly]\nMessage: {message}"
+            }
+        
         date_str = timestamp.strftime("%dth %b %Y")
         time_str = timestamp.strftime("%H:%M")
         
@@ -127,6 +160,10 @@ class Agent:
                 for tool_call in assistant_msg.tool_calls:
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
+                    
+                    # Inject user_id for tools that need it
+                    if function_name == "invoke_worker_agent":
+                        function_args["user_id"] = user_id
                     
                     # Execute the tool function
                     if function_name in self.tool_functions:
