@@ -41,14 +41,14 @@ async def process_event(event, worker_agent, donna):
         
         # Add timeout to prevent hanging (60 seconds max per event)
         async def process_single_event():
-            # Get timestamp in IST for context
+            # Get trigger timestamp and convert to IST for context
             from dateutil.parser import parse
             trigger_time_utc = parse(event['next_trigger_timestamp']) if isinstance(event['next_trigger_timestamp'], str) else event['next_trigger_timestamp']
             trigger_time_ist = utc_to_ist(trigger_time_utc)
             current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
             
             # Step 1: Invoke worker agent with system message
-            system_message = f"REMINDER TRIGGERED: {event['message']}. Current date/time: {current_time_str}. Please execute the task and send the response back to Donna."
+            system_message = f"REMINDER TRIGGERED: {event['message']}. Current date/time: {current_time_str} IST. Please execute the task and send the response back to Donna."
             worker_response = worker_agent.invoke(
                 agent_name=agent_name,
                 user_id=user_id,
@@ -59,7 +59,7 @@ async def process_event(event, worker_agent, donna):
             print(f"Worker response: {worker_response}")
             
             # Step 2: Send worker response to Donna
-            donna_message = f"This is {agent_name} at {current_time_str}. {worker_response['content']}"
+            donna_message = f"This is {agent_name} at {current_time_str} IST. {worker_response['content']}"
             donna_response = donna.invoke(
                 user_id=user_id,
                 message=donna_message,
