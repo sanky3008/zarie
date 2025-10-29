@@ -205,6 +205,25 @@ def update_next_trigger(event_id, recurrence_rule):
         elif next_occurrence.tzinfo != UTC:
             next_occurrence = next_occurrence.astimezone(UTC)
         
+        # If next_occurrence is still in the past (e.g., missed reminders), 
+        # calculate from NOW instead to avoid rapid re-triggering
+        now_utc = get_utc_now()
+        if next_occurrence <= now_utc:
+            print(f"  Warning: Next occurrence {next_occurrence} is in the past!")
+            # Calculate next occurrence from NOW instead of from dtstart
+            try:
+                next_occurrence = rule.after(now_utc)
+                if next_occurrence is None:
+                    # Fallback: now + interval
+                    interval = rrule_kwargs.get('interval', 1)
+                    next_occurrence = now_utc + timedelta(minutes=interval)
+                print(f"  Adjusted to next future occurrence: {next_occurrence} UTC")
+            except Exception as e:
+                print(f"  Error recalculating from now: {e}")
+                # Fallback: now + interval
+                interval = rrule_kwargs.get('interval', 1)
+                next_occurrence = now_utc + timedelta(minutes=interval)
+        
         print(f"  Next occurrence: {next_occurrence} UTC")
         print(f"  Next occurrence IST: {utc_to_ist(next_occurrence)}")
         
