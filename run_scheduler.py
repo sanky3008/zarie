@@ -12,7 +12,7 @@ print("=== SCHEDULER STARTING ===", flush=True)
 try:
     from telegram import Bot
     from dotenv import load_dotenv
-    from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event
+    from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event, get_utc_now
     from worker_agent.agent.agent import WorkerAgent
     from agent.agent import Agent
     print("✓ All imports successful", flush=True)
@@ -80,46 +80,70 @@ async def process_event(event, worker_agent, donna):
     except Exception as e:
         print(f"  ✗ Error: {e}")
 
-async def main():
-    """Main scheduler function with overall timeout"""
-    print(f"\n🕐 Scheduler running at {datetime.now()}", flush=True)
-    
+async def check_and_process_events():
+    """Check for due events and spawn background tasks to process them"""
     try:
-        # Maximum 4 minutes for entire job (Railway CRON runs every 5 mins)
-        async def run_scheduler():
-            # Get due events
-            events = get_due_events()
-            print(f"Found {len(events)} due event(s)")
-            
-            if not events:
-                print("✓ No events to process\n")
-                return
-            
-            # Initialize agents
-            worker_agent = WorkerAgent()
-            donna = Agent()
-            
-            # Process all events concurrently
-            tasks = [process_event(event, worker_agent, donna) for event in events]
-            await asyncio.gather(*tasks, return_exceptions=True)
-            
-            print("✓ Scheduler completed\n")
+        # Get due events
+        events = get_due_events()
         
-        await asyncio.wait_for(run_scheduler(), timeout=240)
+        if not events:
+            print("✓ No events due")
+            return
+        
+        print(f"Found {len(events)} due event(s)")
+        
+        # Initialize agents once per check
+        worker_agent = WorkerAgent()
+        donna = Agent()
+        
+        # Spawn background tasks for each event (non-blocking)
+        for event in events:
+            asyncio.create_task(process_event(event, worker_agent, donna))
+            print(f"  → Spawned task for: {event['reminder_name']}")
     
-    except asyncio.TimeoutError:
-        print("✗ Scheduler timeout - took longer than 4 minutes\n")
     except Exception as e:
-        print(f"✗ Scheduler error: {e}\n")
+        print(f"✗ Error checking events: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+
+async def main():
+    """Main scheduler - runs continuously, checking every minute"""
+    print(f"\n🕐 Scheduler starting at {get_utc_now()} UTC", flush=True)
+    print("Will check for events every 60 seconds...\n", flush=True)
+    
+    check_count = 0
+    
+    while True:
+        try:
+            check_count += 1
+            print(f"\n[Check #{check_count}] {get_utc_now()} UTC", flush=True)
+            
+            # Check and process events (non-blocking)
+            await check_and_process_events()
+            
+            # Wait 60 seconds before next check
+            await asyncio.sleep(60)
+            
+        except KeyboardInterrupt:
+            print("\n⚠️  Scheduler interrupted by user", flush=True)
+            break
+        except Exception as e:
+            print(f"✗ Scheduler error: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            # Continue running even if there's an error
+            await asyncio.sleep(60)
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n⚠️  Scheduler interrupted\n")
+        print("\n⚠️  Scheduler interrupted\n", flush=True)
     except Exception as e:
-        print(f"\n✗ Fatal error: {e}\n")
+        print(f"\n✗ Fatal error: {e}\n", flush=True)
+        import traceback
+        traceback.print_exc()
     finally:
         # Ensure script always exits cleanly
-        print("Scheduler exiting...\n")
+        print("Scheduler exiting...\n", flush=True)
 

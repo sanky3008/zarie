@@ -3,6 +3,41 @@ import os
 from datetime import datetime, timedelta
 from dateutil import rrule as rrule_module
 from dateutil.parser import parse
+import pytz
+
+# Timezone constants
+IST = pytz.timezone('Asia/Kolkata')
+UTC = pytz.UTC
+
+def get_ist_now():
+    """Get current time in IST"""
+    return datetime.now(IST)
+
+def get_utc_now():
+    """Get current time in UTC"""
+    return datetime.now(UTC)
+
+def ist_to_utc(dt):
+    """Convert IST datetime to UTC"""
+    if dt.tzinfo is None:
+        # Assume naive datetime is IST
+        dt = IST.localize(dt)
+    return dt.astimezone(UTC)
+
+def utc_to_ist(dt):
+    """Convert UTC datetime to IST"""
+    if dt.tzinfo is None:
+        # Assume naive datetime is UTC
+        dt = UTC.localize(dt)
+    return dt.astimezone(IST)
+
+def parse_ist_time(time_str):
+    """Parse a time string and return as IST datetime"""
+    dt = parse(time_str)
+    if dt.tzinfo is None:
+        # If no timezone info, treat as IST
+        dt = IST.localize(dt)
+    return dt
 
 def get_db_connection():
     """Get database connection"""
@@ -18,12 +53,13 @@ def get_db_connection():
         return conn, 'sqlite'
 
 def get_due_events():
-    """Get all time events due within the next 5 minutes"""
+    """Get all time events that are due now or in the past (using UTC)"""
     conn, db_type = get_db_connection()
     cursor = conn.cursor()
     
-    now = datetime.now()
-    five_mins_later = now + timedelta(minutes=5)
+    # Use UTC for database comparisons
+    # Since we check every minute, only get events due NOW (not future events)
+    now_utc = get_utc_now()
     
     try:
         if db_type == 'postgres':
@@ -34,7 +70,7 @@ def get_due_events():
                 FROM time_events
                 WHERE status = 'ACTIVE'
                 AND next_trigger_timestamp <= %s
-            """, (five_mins_later.isoformat(),))
+            """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
             return [
                 {
@@ -57,7 +93,7 @@ def get_due_events():
                 FROM time_events
                 WHERE status = 'ACTIVE'
                 AND next_trigger_timestamp <= ?
-            """, (five_mins_later.isoformat(),))
+            """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
             return [
                 {
@@ -99,7 +135,13 @@ def update_next_trigger(event_id, recurrence_rule):
         current_trigger = row[0] if db_type == 'postgres' else row[0]
         dtstart = parse(current_trigger) if isinstance(current_trigger, str) else current_trigger
         
-        print(f"  Updating next trigger from: {dtstart}")
+        # Ensure dtstart is timezone-aware (UTC)
+        if dtstart.tzinfo is None:
+            dtstart = UTC.localize(dtstart)
+        elif dtstart.tzinfo != UTC:
+            dtstart = dtstart.astimezone(UTC)
+        
+        print(f"  Updating next trigger from: {dtstart} UTC")
         print(f"  RRULE: {recurrence_rule}")
         
         # Parse RRULE string
@@ -151,15 +193,20 @@ def update_next_trigger(event_id, recurrence_rule):
             
             if next_occurrence is None:
                 print(f"  Warning: No next occurrence found, using fallback")
-                from datetime import timedelta
                 next_occurrence = dtstart + timedelta(days=1)
         except Exception as e:
             print(f"  Error calculating RRULE: {e}")
             # Fallback: add 1 day
-            from datetime import timedelta
             next_occurrence = dtstart + timedelta(days=1)
         
-        print(f"  Next occurrence: {next_occurrence}")
+        # Ensure next_occurrence is timezone-aware (UTC)
+        if next_occurrence.tzinfo is None:
+            next_occurrence = UTC.localize(next_occurrence)
+        elif next_occurrence.tzinfo != UTC:
+            next_occurrence = next_occurrence.astimezone(UTC)
+        
+        print(f"  Next occurrence: {next_occurrence} UTC")
+        print(f"  Next occurrence IST: {utc_to_ist(next_occurrence)}")
         
         # Update database
         if db_type == 'postgres':

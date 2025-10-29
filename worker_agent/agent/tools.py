@@ -2,6 +2,9 @@ import sqlite3
 import os
 from datetime import datetime
 
+# Import timezone helpers
+from event_manager.time_event_manager import parse_ist_time, ist_to_utc
+
 # Optional imports
 PERPLEXITY_AVAILABLE = False
 try:
@@ -71,7 +74,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
     Args:
         agent_name: Name of the agent
         user_id: User ID
-        next_trigger_timestamp: Next trigger time (ISO format)
+        next_trigger_timestamp: Next trigger time in IST (ISO format) - will be converted to UTC for storage
         is_recurring: Whether this is a recurring event
         freq: Frequency (YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY, SECONDLY) - optional if is_recurring is True
         interval: Interval between occurrences - optional, defaults to 1 if not specified
@@ -110,6 +113,13 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                 rule_parts.append(f"BYMONTH={bymonth}")
             recurrence_rule = ";".join(rule_parts) if rule_parts else None
         
+        # Convert timestamp from IST to UTC for storage
+        # Parse the timestamp (assuming IST if no timezone info)
+        timestamp_ist = parse_ist_time(next_trigger_timestamp)
+        timestamp_utc = ist_to_utc(timestamp_ist)
+        # Store as ISO format string
+        next_trigger_timestamp_utc = timestamp_utc.isoformat()
+        
         # Insert or update time event
         if db_type == 'postgres':
             cursor.execute("""
@@ -124,7 +134,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                     recurrence_rule = EXCLUDED.recurrence_rule,
                     message = EXCLUDED.message,
                     status = 'ACTIVE'
-            """, (agent_name, user_id, next_trigger_timestamp, is_recurring, 
+            """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
                   recurrence_rule, reminder_name, message))
         else:
             cursor.execute("""
@@ -132,7 +142,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                 (agent_name, user_id, next_trigger_timestamp, is_recurring, 
                  recurrence_rule, reminder_name, message, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, (agent_name, user_id, next_trigger_timestamp, is_recurring, 
+            """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
                   recurrence_rule, reminder_name, message))
         
         conn.commit()
