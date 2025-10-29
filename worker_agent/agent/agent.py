@@ -54,7 +54,7 @@ class WorkerAgent:
                 "type": "function",
                 "function": {
                     "name": "set_time_event",
-                    "description": "Set a time-based event/reminder. Use this to schedule reminders or recurring tasks.",
+                    "description": "Set a time-based event/reminder. Use this to schedule reminders or recurring tasks. Use IST Timezone for the next trigger timestamp.",
                     "parameters": {
                         "type": "object",
                         "properties": {
