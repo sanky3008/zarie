@@ -1,7 +1,7 @@
 import litellm
 from worker_agent.directory.directory import Directory
 import json
-from worker_agent.agent.prompt import SYSTEM_PROMPT
+from worker_agent.agent.prompt import get_system_prompt
 from dotenv import load_dotenv
 import os
 from datetime import datetime
@@ -185,11 +185,12 @@ class WorkerAgent:
         context_blob = self.directory.get_context(agent_name, user_id)
         messages = json.loads(context_blob) if context_blob else []
         
-        # Add system prompt if available
-        if SYSTEM_PROMPT:
+        # Add system prompt with dynamic active time events section
+        system_prompt = get_system_prompt(agent_name, user_id)
+        if system_prompt:
             messages.insert(0, {
                 "role": "system",
-                "content": SYSTEM_PROMPT
+                "content": system_prompt
             })
         
         return messages

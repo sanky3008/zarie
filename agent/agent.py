@@ -1,7 +1,7 @@
 import litellm
 from state.state import State
 import json
-from agent.prompt import SYSTEM_PROMPT
+from agent.prompt import get_system_prompt
 from dotenv import load_dotenv
 import os
 from datetime import datetime
@@ -126,11 +126,12 @@ class Agent:
         context_blob = self.state.get_context(user_id)
         messages = json.loads(context_blob) if context_blob else []
         
-        # Add system prompt if available
-        if SYSTEM_PROMPT:
+        # Add system prompt with dynamic worker agents section
+        system_prompt = get_system_prompt(user_id)
+        if system_prompt:
             messages.insert(0, {
                 "role": "system",
-                "content": SYSTEM_PROMPT
+                "content": system_prompt
             })
         
         return messages
