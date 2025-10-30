@@ -36,6 +36,7 @@ async def process_event(event, worker_agent, donna):
         agent_name = event['agent_name']
         user_id = event['user_id']
         reminder_name = event['reminder_name']
+        reminder_message = event['message']
         
         print(f"Processing: {reminder_name} for user {user_id}")
         
@@ -48,12 +49,12 @@ async def process_event(event, worker_agent, donna):
             current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
             
             # Step 1: Invoke worker agent with system message
-            system_message = f"REMINDER TRIGGERED: {event['message']}. Current date/time: {current_time_str} IST. Please execute the task and send the response back to Donna."
+            system_message = f"Message from time-event trigger: {reminder_message}"
             worker_response = worker_agent.invoke(
                 agent_name=agent_name,
                 user_id=user_id,
                 message=system_message,
-                medium="REMINDER_TRIGGERED"
+                medium=f"REMINDER_TRIGGERED: {agent_name}"
             )
 
             print(f"Worker response: {worker_response}")
