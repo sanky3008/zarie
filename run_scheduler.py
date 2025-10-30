@@ -49,11 +49,10 @@ async def process_event(event, worker_agent, donna):
             current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
             
             # Step 1: Invoke worker agent with system message
-            system_message = f"Message from time-event trigger: {reminder_message}"
             worker_response = worker_agent.invoke(
                 agent_name=agent_name,
                 user_id=user_id,
-                message=system_message,
+                message=reminder_message,
                 medium=f"REMINDER_TRIGGERED: {agent_name}"
             )
 
