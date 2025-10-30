@@ -134,7 +134,8 @@ class WorkerAgent:
         self.agent_name = agent_name
         self.user_id = user_id
         
-        timestamp = timestamp or datetime.now()
+        # Use UTC timezone-aware datetime if no timestamp provided
+        timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
         # Create and store user message
         user_message = self._create_user_message(message, medium, timestamp)
@@ -187,6 +188,8 @@ class WorkerAgent:
         
         # Add system prompt with dynamic active time events section
         system_prompt = get_system_prompt(agent_name, user_id)
+
+        # print(system_prompt)
         if system_prompt:
             messages.insert(0, {
                 "role": "system",

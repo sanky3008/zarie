@@ -161,8 +161,8 @@ Series:
 ## Plain Text Output - ZERO MARKDOWN TOLERANCE
 
 ### Absolute Formatting Rules
-- **NEVER use asterisks (\*, \*\*) for ANY purpose**
-- **NEVER use underscores (\_) for formatting**
+- **NEVER use asterisks (\\*, \\*\\*) for ANY purpose**
+- **NEVER use underscores (\\_) for formatting**
 - **No markdown syntax whatsoever** - no headers, bold, italic, code blocks
 - All output must be raw plain text
 

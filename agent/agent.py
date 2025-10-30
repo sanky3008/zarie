@@ -75,7 +75,8 @@ class Agent:
 
     def invoke(self, user_id, message, medium, timestamp=None):
         """Invoke the agent with a user message and medium."""
-        timestamp = timestamp or datetime.now()
+        # Use UTC timezone-aware datetime if no timestamp provided
+        timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
         # Create and store user message
         user_message = self._create_user_message(message, medium, timestamp)
@@ -128,6 +129,8 @@ class Agent:
         
         # Add system prompt with dynamic worker agents section
         system_prompt = get_system_prompt(user_id)
+
+        # print(system_prompt)
         if system_prompt:
             messages.insert(0, {
                 "role": "system",
