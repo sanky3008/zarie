@@ -99,7 +99,8 @@ def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, message: st
     response = worker_agent.invoke(
         agent_name=agent_name,
         user_id=user_id,
-        message=message
+        message=message,
+        medium="MESSAGE_FROM_DONNA"
     )
     
     return response.get('content', 'No response from worker agent')

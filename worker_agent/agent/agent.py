@@ -127,7 +127,7 @@ class WorkerAgent:
             }
         ]
 
-    def invoke(self, agent_name, user_id, message, medium="Message_from_Donna", timestamp=None):
+    def invoke(self, agent_name, user_id, message, medium="", timestamp=None):
         """Invoke the worker agent with a message."""
         # Store current session info
         self.agent_name = agent_name
@@ -151,13 +151,6 @@ class WorkerAgent:
     
     def _create_user_message(self, message, medium, timestamp):
         """Create a formatted user message with date, time, and medium."""
-        # System messages don't need date/time formatting
-        if medium == "system":
-            return {
-                "role": "user",
-                "content": f"[A time-event has been triggered. Please execute the task and send the response back to Donna.]\nMessage: {message}"
-            }
-        
         date_str = timestamp.strftime("%dth %b %Y")
         time_str = timestamp.strftime("%H:%M")
         

@@ -53,17 +53,17 @@ async def process_event(event, worker_agent, donna):
                 agent_name=agent_name,
                 user_id=user_id,
                 message=system_message,
-                medium="system"
+                medium="REMINDER_TRIGGERED"
             )
 
             print(f"Worker response: {worker_response}")
             
             # Step 2: Send worker response to Donna
-            donna_message = f"This is {agent_name} at {current_time_str} IST. {worker_response['content']}"
+            donna_message = f"{worker_response['content']}"
             donna_response = donna.invoke(
                 user_id=user_id,
                 message=donna_message,
-                medium="system"
+                medium=f"MESSAGE_FROM: {agent_name}. Current time is: {current_time_str} IST."
             )
 
             print(f"Donna response: {donna_response}")
