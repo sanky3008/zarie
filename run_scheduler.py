@@ -63,7 +63,7 @@ async def process_event(event, worker_agent, donna):
             donna_response = donna.invoke(
                 user_id=user_id,
                 message=donna_message,
-                medium=f"MESSAGE_FROM: {agent_name}. Current time is: {current_time_str} IST."
+                medium=f"{agent_name}"
             )
 
             print(f"Donna response: {donna_response}")

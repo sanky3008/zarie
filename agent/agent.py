@@ -5,6 +5,7 @@ from agent.prompt import SYSTEM_PROMPT
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from agent.tools import web_search, invoke_worker_agent
 load_dotenv()
 
@@ -92,12 +93,31 @@ class Agent:
     
     def _create_user_message(self, message, medium, timestamp):
         """Create a formatted user message with date, time, and medium."""
-        date_str = timestamp.strftime("%dth %b %Y")
-        time_str = timestamp.strftime("%H:%M")
+        # Convert to IST (Indian Standard Time)
+        ist_timezone = ZoneInfo("Asia/Kolkata")
+        if timestamp.tzinfo is None:
+            # If timestamp is naive, assume it's UTC
+            timestamp = timestamp.replace(tzinfo=ZoneInfo("UTC"))
+        ist_timestamp = timestamp.astimezone(ist_timezone)
+        
+        # Get day and date components
+        day_name = ist_timestamp.strftime("%A")
+        day = ist_timestamp.day
+        month = ist_timestamp.strftime("%b")
+        year = ist_timestamp.year
+        
+        # Get proper ordinal suffix
+        if 10 <= day % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        
+        date_str = f"{day_name}, {day}{suffix} {month} {year}"
+        time_str = ist_timestamp.strftime("%H:%M")
         
         return {
             "role": "user",
-            "content": f"Date: {date_str}, Time: {time_str}, Medium: {medium}\nMessage: {message}"
+            "content": f"Date: {date_str}\nTime: {time_str}\nFROM: {medium}\nMessage: {message}"
         }
     
     def _prepare_messages(self, user_id):

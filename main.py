@@ -68,7 +68,7 @@ class TelegramBot:
                 self.agent.invoke, 
                 user_id, 
                 message_text, 
-                "TELEGRAM",
+                "End-User via Telegram",
                 message_timestamp_ist
             )
             
