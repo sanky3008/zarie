@@ -357,7 +357,14 @@ def _format_time_event(event):
     """Format a time event for display in the prompt."""
     try:
         # Parse and convert UTC timestamp to IST
-        utc_time = parser.parse(event['next_trigger_timestamp'])
+        # Handle both string and datetime object types
+        timestamp = event['next_trigger_timestamp']
+        if isinstance(timestamp, str):
+            utc_time = parser.parse(timestamp)
+        else:
+            # Already a datetime object (from PostgreSQL)
+            utc_time = timestamp
+        
         ist_time = utc_to_ist(utc_time)
         
         # Format as human-readable IST time
