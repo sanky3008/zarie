@@ -75,14 +75,17 @@ async def process_event(event, worker_agent, donna):
             if event['is_recurring'] and event['recurrence_rule']:
                 update_next_trigger(event_id, event['recurrence_rule'])
                 print(f"  ✓ Updated next trigger")
+                return True  # Indicate this is a recurring event
             else:
                 disable_event(event_id)
                 print(f"  ✓ Disabled one-time event")
+                return False  # Indicate this is a one-time event
         
-        await asyncio.wait_for(process_single_event(), timeout=180)
+        is_recurring = await asyncio.wait_for(process_single_event(), timeout=180)
         
-        # On success, unlock the event for the next run
-        update_event_status(event_id, 'ACTIVE')
+        # On success, unlock ONLY recurring events (one-time events stay DISABLED)
+        if is_recurring:
+            update_event_status(event_id, 'ACTIVE')
     
     except asyncio.TimeoutError:
         print(f"  ✗ Timeout processing {event.get('reminder_name', 'unknown')}")
