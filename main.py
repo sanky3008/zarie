@@ -111,8 +111,8 @@ class TelegramBot:
     
     def run(self):
         """Start the Telegram bot."""
-        # Create the Application
-        app = Application.builder().token(self.token).build()
+        # Create the Application with concurrent updates enabled
+        app = Application.builder().token(self.token).concurrent_updates(True).build()
         
         # Register command handlers
         app.add_handler(CommandHandler("start", self.start_command))
