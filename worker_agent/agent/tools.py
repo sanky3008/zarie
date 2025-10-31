@@ -24,20 +24,20 @@ except ImportError:
 
 def get_db_connection():
     """Get database connection from shared pool"""
-    pool, db_type, sqlite_conn, _ = get_shared_pool()
+    pool, db_type, sqlite_conn, sqlite_lock, _ = get_shared_pool()
     
     if db_type == 'postgres':
         # Return connection from pool (caller must putconn when done)
         conn = pool.getconn()
-        return conn, 'postgres'
+        return conn, 'postgres', None
     else:
-        # For SQLite, return the shared connection
-        return sqlite_conn, 'sqlite'
+        # For SQLite, return the shared connection and lock
+        return sqlite_conn, 'sqlite', sqlite_lock
 
 def return_db_connection(conn, db_type):
     """Return connection to pool (only needed for postgres)"""
     if db_type == 'postgres':
-        pool, _, _, _ = get_shared_pool()
+        pool, _, _, _, _ = get_shared_pool()
         pool.putconn(conn)
 
 
@@ -92,11 +92,9 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
     Returns:
         str: Success message
     """
-    conn, db_type = get_db_connection()
+    conn, db_type, sqlite_lock = get_db_connection()
     
     try:
-        cursor = conn.cursor()
-        
         # Generate recurrence rule if recurring
         recurrence_rule = None
         if is_recurring:
@@ -118,14 +116,25 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
             recurrence_rule = ";".join(rule_parts) if rule_parts else None
         
         # Convert timestamp from IST to UTC for storage
-        # Parse the timestamp (assuming IST if no timezone info)
         timestamp_ist = parse_ist_time(next_trigger_timestamp)
         timestamp_utc = ist_to_utc(timestamp_ist)
-        # Store as ISO format string
         next_trigger_timestamp_utc = timestamp_utc.isoformat()
         
-        # Insert or update time event
-        if db_type == 'postgres':
+        # Use lock for SQLite operations
+        if db_type == 'sqlite' and sqlite_lock:
+            with sqlite_lock:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO time_events 
+                    (agent_name, user_id, next_trigger_timestamp, is_recurring, 
+                     recurrence_rule, reminder_name, message, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+                """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
+                      recurrence_rule, reminder_name, message))
+                conn.commit()
+        else:
+            # PostgreSQL
+            cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO time_events 
                 (agent_name, user_id, next_trigger_timestamp, is_recurring, 
@@ -140,16 +149,8 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                     status = 'ACTIVE'
             """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
                   recurrence_rule, reminder_name, message))
-        else:
-            cursor.execute("""
-                INSERT OR REPLACE INTO time_events 
-                (agent_name, user_id, next_trigger_timestamp, is_recurring, 
-                 recurrence_rule, reminder_name, message, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-            """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
-                  recurrence_rule, reminder_name, message))
+            conn.commit()
         
-        conn.commit()
         return f"Time event '{reminder_name}' set successfully"
         
     except Exception as e:
@@ -172,29 +173,38 @@ def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
     Returns:
         str: Success message
     """
-    conn, db_type = get_db_connection()
+    conn, db_type, sqlite_lock = get_db_connection()
     
     try:
-        cursor = conn.cursor()
-        
-        if db_type == 'postgres':
+        # Use lock for SQLite operations
+        if db_type == 'sqlite' and sqlite_lock:
+            with sqlite_lock:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE time_events 
+                    SET status = 'DISABLED'
+                    WHERE agent_name = ? AND user_id = ? AND reminder_name = ?
+                """, (agent_name, user_id, reminder_name))
+                
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    return f"Time event '{reminder_name}' deleted successfully"
+                else:
+                    return f"Time event '{reminder_name}' not found"
+        else:
+            # PostgreSQL
+            cursor = conn.cursor()
             cursor.execute("""
                 UPDATE time_events 
                 SET status = 'DISABLED'
                 WHERE agent_name = %s AND user_id = %s AND reminder_name = %s
             """, (agent_name, user_id, reminder_name))
-        else:
-            cursor.execute("""
-                UPDATE time_events 
-                SET status = 'DISABLED'
-                WHERE agent_name = ? AND user_id = ? AND reminder_name = ?
-            """, (agent_name, user_id, reminder_name))
-        
-        if cursor.rowcount > 0:
-            conn.commit()
-            return f"Time event '{reminder_name}' deleted successfully"
-        else:
-            return f"Time event '{reminder_name}' not found"
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                return f"Time event '{reminder_name}' deleted successfully"
+            else:
+                return f"Time event '{reminder_name}' not found"
             
     except Exception as e:
         if db_type == 'postgres':

@@ -14,14 +14,15 @@ class _DummyLock:
 _shared_pool = None
 _shared_db_type = None
 _shared_sqlite_conn = None
+_shared_sqlite_lock = None
 _shared_realdict_cursor = None
 
 def get_shared_pool():
     """Get or create the shared connection pool for worker agent"""
-    global _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_realdict_cursor
+    global _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_sqlite_lock, _shared_realdict_cursor
     
     if _shared_pool is not None or _shared_sqlite_conn is not None:
-        return _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_realdict_cursor
+        return _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_sqlite_lock, _shared_realdict_cursor
     
     database_url = os.getenv('DATABASE_URL')
     
@@ -33,6 +34,7 @@ def get_shared_pool():
         _shared_db_type = 'postgres'
         _shared_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=database_url)
         _shared_realdict_cursor = RealDictCursor
+        _shared_sqlite_lock = None
     else:
         # Use SQLite for local development
         _shared_db_type = 'sqlite'
@@ -40,21 +42,22 @@ def get_shared_pool():
         _shared_sqlite_conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
         _shared_sqlite_conn.execute("PRAGMA journal_mode=WAL")
         _shared_sqlite_conn.execute("PRAGMA busy_timeout=30000")
+        _shared_sqlite_lock = threading.Lock()
     
-    return _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_realdict_cursor
+    return _shared_pool, _shared_db_type, _shared_sqlite_conn, _shared_sqlite_lock, _shared_realdict_cursor
 
 class Directory:
     def __init__(self, db_path=None):
         """Initialize the Directory class and connect to the database."""
         # Use the shared pool
-        self.pool, self.db_type, self.conn, self.RealDictCursor = get_shared_pool()
+        self.pool, self.db_type, self.conn, self.lock, self.RealDictCursor = get_shared_pool()
         
-        # Set up lock and cursor based on database type
+        # Set up cursor based on database type
         if self.db_type == 'sqlite':
-            self.lock = threading.Lock()
             self.cursor = self.conn.cursor()
         else:
-            self.lock = _DummyLock()
+            # PostgreSQL doesn't need a cursor here
+            pass
         
         # Table already created by migration script
     

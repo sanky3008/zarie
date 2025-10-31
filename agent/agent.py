@@ -1,5 +1,5 @@
 import litellm
-from state.state import State
+from agent.state.state import State
 import json
 from agent.prompt import get_system_prompt
 from dotenv import load_dotenv

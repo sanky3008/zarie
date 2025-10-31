@@ -526,55 +526,43 @@ BASE_SYSTEM_PROMPT_PART2 = """
 """
 
 
-def _get_db_connection():
-    """Get database connection (PostgreSQL or SQLite)."""
-    database_url = os.getenv('DATABASE_URL')
-    
-    if database_url:
-        # Use PostgreSQL
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(database_url)
-        return conn, 'postgres'
-    else:
-        # Use SQLite for local development
-        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'chats.db')
-        conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        return conn, 'sqlite'
+# Import shared pool from state
+from agent.state.state import get_shared_state_pool
 
 
 def _fetch_worker_agents(user_id):
     """Fetch worker agents for a given user from the database."""
+    pool, db_type, sqlite_conn, sqlite_lock, RealDictCursor = get_shared_state_pool()
+    
     try:
-        conn, db_type = _get_db_connection()
-        cursor = conn.cursor()
-        
         if db_type == 'postgres':
-            from psycopg2.extras import RealDictCursor
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            cursor.execute("""
-                SELECT agent_name, purpose 
-                FROM worker_agent_directory 
-                WHERE user_id = %s
-                ORDER BY updated_at DESC
-            """, (user_id,))
-            rows = cursor.fetchall()
-            # Convert RealDictRow to regular dict
-            agents = [dict(row) for row in rows]
+            conn = pool.getconn()
+            try:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor.execute("""
+                    SELECT agent_name, purpose 
+                    FROM worker_agent_directory 
+                    WHERE user_id = %s
+                    ORDER BY updated_at DESC
+                """, (user_id,))
+                rows = cursor.fetchall()
+                agents = [dict(row) for row in rows]
+                return agents
+            finally:
+                pool.putconn(conn)
         else:
-            cursor.execute("""
-                SELECT agent_name, purpose 
-                FROM worker_agent_directory 
-                WHERE user_id = ?
-                ORDER BY updated_at DESC
-            """, (user_id,))
-            rows = cursor.fetchall()
-            agents = [{'agent_name': row[0], 'purpose': row[1]} for row in rows]
-        
-        conn.close()
-        return agents
+            # SQLite - use shared connection with lock
+            with sqlite_lock:
+                cursor = sqlite_conn.cursor()
+                cursor.execute("""
+                    SELECT agent_name, purpose 
+                    FROM worker_agent_directory 
+                    WHERE user_id = ?
+                    ORDER BY updated_at DESC
+                """, (user_id,))
+                rows = cursor.fetchall()
+                agents = [{'agent_name': row[0], 'purpose': row[1]} for row in rows]
+                return agents
     except Exception as e:
         # If there's any database error, return empty list to not break the prompt
         print(f"Error fetching worker agents: {e}")
