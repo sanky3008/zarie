@@ -6,6 +6,7 @@ import sys
 import asyncio
 import os
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 print("=== SCHEDULER STARTING ===", flush=True)
 
@@ -24,12 +25,24 @@ except Exception as e:
 
 load_dotenv()
 
+# Shared executor for agent invocations
+_executor = None
+
+def get_executor():
+    """Get or create the shared thread pool executor."""
+    global _executor
+    if _executor is None:
+        # Create executor with max_workers=20 for scheduler
+        # This allows up to 20 concurrent event processing tasks
+        _executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="scheduler-worker")
+    return _executor
+
 async def send_telegram_message(user_id: str, message: str):
     """Send a message to a user via Telegram"""
     bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
     await bot.send_message(chat_id=user_id, text=message)
 
-async def process_event(event, worker_agent, donna):
+async def process_event(event, worker_agent, donna, executor):
     """Process a single time event with timeout"""
     try:
         event_id = event['id']
@@ -48,27 +61,33 @@ async def process_event(event, worker_agent, donna):
             trigger_time_ist = utc_to_ist(trigger_time_utc)
             current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
             
-            # Step 1: Invoke worker agent with system message
-            worker_response = worker_agent.invoke(
-                agent_name=agent_name,
-                user_id=user_id,
-                message=reminder_message,
-                medium=f"REMINDER_TRIGGERED: {agent_name}"
+            loop = asyncio.get_event_loop()
+            
+            # Step 1: Invoke worker agent in thread pool (non-blocking)
+            worker_response = await loop.run_in_executor(
+                executor,
+                worker_agent.invoke,
+                agent_name,
+                user_id,
+                reminder_message,
+                f"REMINDER_TRIGGERED: {agent_name}"
             )
 
             print(f"Worker response: {worker_response}")
             
-            # Step 2: Send worker response to Donna
+            # Step 2: Send worker response to Donna in thread pool (non-blocking)
             donna_message = f"{worker_response['content']}"
-            donna_response = donna.invoke(
-                user_id=user_id,
-                message=donna_message,
-                medium=f"{agent_name}"
+            donna_response = await loop.run_in_executor(
+                executor,
+                donna.invoke,
+                user_id,
+                donna_message,
+                f"{agent_name}"
             )
 
             print(f"Donna response: {donna_response}")
             
-            # Step 3: Send Donna's response to user via Telegram
+            # Step 3: Send Donna's response to user via Telegram (async, non-blocking)
             await send_telegram_message(user_id, donna_response['content'])
             
             # Step 4: Update or disable event
@@ -96,7 +115,7 @@ async def process_event(event, worker_agent, donna):
         # Unlock the event to allow it to be retried on the next cycle
         update_event_status(event_id, 'ACTIVE')
 
-async def check_and_process_events(worker_agent, donna):
+async def check_and_process_events(worker_agent, donna, executor):
     """Check for due events and spawn background tasks to process them"""
     try:
         # Get due events
@@ -114,7 +133,7 @@ async def check_and_process_events(worker_agent, donna):
             update_event_status(event['id'], 'PROCESSING')
             
             # Spawn a background task to handle the event
-            asyncio.create_task(process_event(event, worker_agent, donna))
+            asyncio.create_task(process_event(event, worker_agent, donna, executor))
             print(f"  → Spawned task for: {event['reminder_name']}")
     
     except Exception as e:
@@ -131,6 +150,7 @@ async def main():
     print("Initializing agents...", flush=True)
     worker_agent = WorkerAgent()
     donna = Agent()
+    executor = get_executor()
     print("✓ Agents initialized\n", flush=True)
     
     check_count = 0
@@ -141,7 +161,7 @@ async def main():
             print(f"\n[Check #{check_count}] {get_utc_now()} UTC", flush=True)
             
             # Check and process events (non-blocking), reusing agent instances
-            await check_and_process_events(worker_agent, donna)
+            await check_and_process_events(worker_agent, donna, executor)
             
             # Wait 60 seconds before next check
             await asyncio.sleep(60)
