@@ -96,7 +96,7 @@ async def process_event(event, worker_agent, donna):
         # Unlock the event to allow it to be retried on the next cycle
         update_event_status(event_id, 'ACTIVE')
 
-async def check_and_process_events():
+async def check_and_process_events(worker_agent, donna):
     """Check for due events and spawn background tasks to process them"""
     try:
         # Get due events
@@ -107,10 +107,6 @@ async def check_and_process_events():
             return
         
         print(f"Found {len(events)} due event(s)")
-        
-        # Initialize agents once per check
-        worker_agent = WorkerAgent()
-        donna = Agent()
         
         # Lock and spawn tasks
         for event in events:
@@ -131,6 +127,12 @@ async def main():
     print(f"\n🕐 Scheduler starting at {get_utc_now()} UTC", flush=True)
     print("Will check for events every 60 seconds...\n", flush=True)
     
+    # Initialize agents once for the entire scheduler lifetime
+    print("Initializing agents...", flush=True)
+    worker_agent = WorkerAgent()
+    donna = Agent()
+    print("✓ Agents initialized\n", flush=True)
+    
     check_count = 0
     
     while True:
@@ -138,8 +140,8 @@ async def main():
             check_count += 1
             print(f"\n[Check #{check_count}] {get_utc_now()} UTC", flush=True)
             
-            # Check and process events (non-blocking)
-            await check_and_process_events()
+            # Check and process events (non-blocking), reusing agent instances
+            await check_and_process_events(worker_agent, donna)
             
             # Wait 60 seconds before next check
             await asyncio.sleep(60)

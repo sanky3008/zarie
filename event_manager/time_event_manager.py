@@ -9,6 +9,11 @@ import pytz
 IST = pytz.timezone('Asia/Kolkata')
 UTC = pytz.UTC
 
+# Module-level variables for connection pool
+_pool = None
+_db_type = None
+_sqlite_conn = None
+
 def get_ist_now():
     """Get current time in IST"""
     return datetime.now(IST)
@@ -39,29 +44,54 @@ def parse_ist_time(time_str):
         dt = IST.localize(dt)
     return dt
 
-def get_db_connection():
-    """Get database connection"""
+def _initialize_pool():
+    """Initialize the connection pool for event manager"""
+    global _pool, _db_type, _sqlite_conn
+    
+    if _pool is not None or _sqlite_conn is not None:
+        return  # Already initialized
+    
     database_url = os.getenv('DATABASE_URL')
     
     if database_url:
-        import psycopg2
-        conn = psycopg2.connect(database_url)
+        # Use PostgreSQL with connection pool
+        import psycopg2.pool
+        _db_type = 'postgres'
+        _pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=database_url)
+    else:
+        # Use SQLite for local development
+        _db_type = 'sqlite'
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'chats.db')
+        _sqlite_conn = sqlite3.connect(db_path)
+
+def get_db_connection():
+    """Get database connection from pool"""
+    _initialize_pool()
+    
+    if _db_type == 'postgres':
+        # Return connection from pool (caller must putconn when done)
+        conn = _pool.getconn()
         return conn, 'postgres'
     else:
-        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'chats.db')
-        conn = sqlite3.connect(db_path)
-        return conn, 'sqlite'
+        # For SQLite, return the shared connection
+        return _sqlite_conn, 'sqlite'
+
+def return_db_connection(conn, db_type):
+    """Return connection to pool (only needed for postgres)"""
+    if db_type == 'postgres' and _pool is not None:
+        _pool.putconn(conn)
 
 def get_due_events():
     """Get all time events that are due now or in the past (using UTC)"""
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     # Use UTC for database comparisons
     # Since we check every minute, only get events due NOW (not future events)
     now_utc = get_utc_now()
     
     try:
+        cursor = conn.cursor()
+        
         if db_type == 'postgres':
             cursor.execute("""
                 SELECT id, agent_name, user_id, reminder_name, 
@@ -109,14 +139,15 @@ def get_due_events():
                 for row in rows
             ]
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 
 def update_next_trigger(event_id, recurrence_rule):
     """Calculate and update next trigger time for recurring events"""
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     try:
+        cursor = conn.cursor()
+        
         # First, get the current next_trigger_timestamp
         if db_type == 'postgres':
             cursor.execute("""
@@ -248,14 +279,15 @@ def update_next_trigger(event_id, recurrence_rule):
         import traceback
         traceback.print_exc()
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 
 def disable_event(event_id):
     """Mark a one-time event as DISABLED after it's triggered"""
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     try:
+        cursor = conn.cursor()
+        
         if db_type == 'postgres':
             cursor.execute("""
                 UPDATE time_events 
@@ -271,14 +303,15 @@ def disable_event(event_id):
         
         conn.commit()
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 
 def update_event_status(event_id, status):
     """Update the status of a time event"""
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     try:
+        cursor = conn.cursor()
+        
         if db_type == 'postgres':
             cursor.execute("""
                 UPDATE time_events 
@@ -297,5 +330,5 @@ def update_event_status(event_id, status):
     except Exception as e:
         print(f"  ✗ Error updating status for event {event_id}: {e}")
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 

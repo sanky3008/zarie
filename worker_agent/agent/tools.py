@@ -5,6 +5,9 @@ from datetime import datetime
 # Import timezone helpers
 from event_manager.time_event_manager import parse_ist_time, ist_to_utc
 
+# Import shared pool from directory
+from worker_agent.directory.directory import get_shared_pool
+
 # Optional imports
 PERPLEXITY_AVAILABLE = False
 try:
@@ -20,22 +23,22 @@ except ImportError:
     pass
 
 def get_db_connection():
-    """Get database connection using the same approach as state.py"""
-    database_url = os.getenv('DATABASE_URL')
+    """Get database connection from shared pool"""
+    pool, db_type, sqlite_conn, _ = get_shared_pool()
     
-    if database_url:
-        # Use PostgreSQL for Railway deployment
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(database_url)
+    if db_type == 'postgres':
+        # Return connection from pool (caller must putconn when done)
+        conn = pool.getconn()
         return conn, 'postgres'
     else:
-        # Use SQLite for local development
-        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '..', 'chats.db')
-        conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
-        return conn, 'sqlite'
+        # For SQLite, return the shared connection
+        return sqlite_conn, 'sqlite'
+
+def return_db_connection(conn, db_type):
+    """Return connection to pool (only needed for postgres)"""
+    if db_type == 'postgres':
+        pool, _, _, _ = get_shared_pool()
+        pool.putconn(conn)
 
 
 def web_search(query: str):
@@ -90,9 +93,10 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
         str: Success message
     """
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     try:
+        cursor = conn.cursor()
+        
         # Generate recurrence rule if recurring
         recurrence_rule = None
         if is_recurring:
@@ -141,7 +145,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                 INSERT OR REPLACE INTO time_events 
                 (agent_name, user_id, next_trigger_timestamp, is_recurring, 
                  recurrence_rule, reminder_name, message, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
             """, (agent_name, user_id, next_trigger_timestamp_utc, is_recurring, 
                   recurrence_rule, reminder_name, message))
         
@@ -149,10 +153,11 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
         return f"Time event '{reminder_name}' set successfully"
         
     except Exception as e:
-        conn.rollback()
+        if db_type == 'postgres':
+            conn.rollback()
         return f"Error setting time event: {str(e)}"
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 
 
 def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
@@ -168,9 +173,10 @@ def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
         str: Success message
     """
     conn, db_type = get_db_connection()
-    cursor = conn.cursor()
     
     try:
+        cursor = conn.cursor()
+        
         if db_type == 'postgres':
             cursor.execute("""
                 UPDATE time_events 
@@ -191,9 +197,10 @@ def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
             return f"Time event '{reminder_name}' not found"
             
     except Exception as e:
-        conn.rollback()
+        if db_type == 'postgres':
+            conn.rollback()
         return f"Error deleting time event: {str(e)}"
     finally:
-        conn.close()
+        return_db_connection(conn, db_type)
 
 
