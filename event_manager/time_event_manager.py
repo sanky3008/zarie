@@ -273,3 +273,29 @@ def disable_event(event_id):
     finally:
         conn.close()
 
+def update_event_status(event_id, status):
+    """Update the status of a time event"""
+    conn, db_type = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        if db_type == 'postgres':
+            cursor.execute("""
+                UPDATE time_events 
+                SET status = %s 
+                WHERE id = %s
+            """, (status, event_id))
+        else:
+            cursor.execute("""
+                UPDATE time_events 
+                SET status = ? 
+                WHERE id = ?
+            """, (status, event_id))
+        
+        conn.commit()
+        # print(f"  ✓ Updated status to {status} for event {event_id}")
+    except Exception as e:
+        print(f"  ✗ Error updating status for event {event_id}: {e}")
+    finally:
+        conn.close()
+

@@ -12,7 +12,7 @@ print("=== SCHEDULER STARTING ===", flush=True)
 try:
     from telegram import Bot
     from dotenv import load_dotenv
-    from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event, get_utc_now, utc_to_ist
+    from event_manager.time_event_manager import get_due_events, update_next_trigger, disable_event, get_utc_now, utc_to_ist, update_event_status
     from worker_agent.agent.agent import WorkerAgent
     from agent.agent import Agent
     print("✓ All imports successful", flush=True)
@@ -40,7 +40,7 @@ async def process_event(event, worker_agent, donna):
         
         print(f"Processing: {reminder_name} for user {user_id}")
         
-        # Add timeout to prevent hanging (60 seconds max per event)
+        # Add timeout to prevent hanging (180 seconds max per event)
         async def process_single_event():
             # Get trigger timestamp and convert to IST for context
             from dateutil.parser import parse
@@ -79,12 +79,19 @@ async def process_event(event, worker_agent, donna):
                 disable_event(event_id)
                 print(f"  ✓ Disabled one-time event")
         
-        await asyncio.wait_for(process_single_event(), timeout=60)
+        await asyncio.wait_for(process_single_event(), timeout=180)
+        
+        # On success, unlock the event for the next run
+        update_event_status(event_id, 'ACTIVE')
     
     except asyncio.TimeoutError:
         print(f"  ✗ Timeout processing {event.get('reminder_name', 'unknown')}")
+        # Unlock the event to allow it to be retried on the next cycle
+        update_event_status(event_id, 'ACTIVE')
     except Exception as e:
         print(f"  ✗ Error: {e}")
+        # Unlock the event to allow it to be retried on the next cycle
+        update_event_status(event_id, 'ACTIVE')
 
 async def check_and_process_events():
     """Check for due events and spawn background tasks to process them"""
@@ -102,8 +109,12 @@ async def check_and_process_events():
         worker_agent = WorkerAgent()
         donna = Agent()
         
-        # Spawn background tasks for each event (non-blocking)
+        # Lock and spawn tasks
         for event in events:
+            # Lock the event to prevent reprocessing
+            update_event_status(event['id'], 'PROCESSING')
+            
+            # Spawn a background task to handle the event
             asyncio.create_task(process_event(event, worker_agent, donna))
             print(f"  → Spawned task for: {event['reminder_name']}")
     
