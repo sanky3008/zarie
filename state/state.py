@@ -24,13 +24,14 @@ class State:
         database_url = os.getenv('DATABASE_URL')
         
         if database_url:
-            # Use PostgreSQL
-            import psycopg2
+            # Use PostgreSQL with a connection pool for production
+            import psycopg2.pool
             from psycopg2.extras import RealDictCursor
             
             self.db_type = 'postgres'
-            self.conn = psycopg2.connect(database_url)
-            self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+            # Create a threaded connection pool
+            self.pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=database_url)
+            self.RealDictCursor = RealDictCursor  # Store cursor factory for later use
         else:
             # Use SQLite (for local development)
             self.db_type = 'sqlite'
@@ -45,86 +46,103 @@ class State:
     
     def __del__(self):
         """Close the database connection when the object is destroyed."""
-        if hasattr(self, 'conn'):
+        # Close the pool if it exists, otherwise close the connection
+        if hasattr(self, 'pool'):
+            self.pool.closeall()
+        elif hasattr(self, 'conn'):
             self.conn.close()
     
     def _initialize_database(self):
         """Create the chats table if it doesn't exist."""
         if self.db_type == 'postgres':
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chats (
-                    user_id TEXT PRIMARY KEY,
-                    context TEXT NOT NULL
-                )
-            """)
+            # Get a temporary connection from the pool to initialize the DB
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS chats (
+                            user_id TEXT PRIMARY KEY,
+                            context TEXT NOT NULL
+                        )
+                    """)
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
         else:  # sqlite
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS chats (
-                    user_id TEXT PRIMARY KEY,
-                    context TEXT NOT NULL
-                )
-            """)
-        self.conn.commit()
+            with self.lock:
+                self.cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS chats (
+                        user_id TEXT PRIMARY KEY,
+                        context TEXT NOT NULL
+                    )
+                """)
+                self.conn.commit()
     
     def get_context(self, user_id):
         """Get the context BLOB for a given user_id."""
-        with self.lock:
-            if self.db_type == 'postgres':
-                self.cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
-            else:
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
+                    cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
+                    row = cursor.fetchone()
+                    return row['context'] if row else None
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
                 self.cursor.execute("SELECT context FROM chats WHERE user_id = ?", (user_id,))
-            
-            row = self.cursor.fetchone()
-            
-            if self.db_type == 'postgres':
-                return row['context'] if row else None
-            else:
+                row = self.cursor.fetchone()
                 return row[0] if row else None
     
     def add_context(self, user_id, response_or_responses):
         """Add context for a given user_id. Can handle single response or list of responses."""
-        # Normalize input to always be a list
         if isinstance(response_or_responses, list):
             responses = response_or_responses
         else:
             responses = [response_or_responses]
         
-        with self.lock:
-            # Get the current context
-            if self.db_type == 'postgres':
-                self.cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
-            else:
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
+                    # Get current context
+                    cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
+                    row = cursor.fetchone()
+                    context_blob = row['context'] if row else None
+                    
+                    # Modify context
+                    context = json.loads(context_blob) if context_blob else []
+                    context.extend(responses)
+                    context_json = json.dumps(context)
+                    
+                    # Write back to DB
+                    cursor.execute("""
+                        INSERT INTO chats (user_id, context) VALUES (%s, %s)
+                        ON CONFLICT (user_id) DO UPDATE SET context = EXCLUDED.context
+                    """, (user_id, context_json))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                # Get the current context
                 self.cursor.execute("SELECT context FROM chats WHERE user_id = ?", (user_id,))
-            
-            row = self.cursor.fetchone()
-            
-            if self.db_type == 'postgres':
-                context_blob = row['context'] if row else None
-            else:
+                row = self.cursor.fetchone()
                 context_blob = row[0] if row else None
-            
-            # Parse the existing context or create new list
-            if context_blob:
-                context = json.loads(context_blob)
-            else:
-                context = []
-            
-            # Append all responses to the context atomically
-            context.extend(responses)
-            
-            # Save the updated context back to the database
-            context_json = json.dumps(context)
-            
-            # Use INSERT OR REPLACE / UPSERT
-            if self.db_type == 'postgres':
-                # PostgreSQL UPSERT
-                self.cursor.execute("""
-                    INSERT INTO chats (user_id, context) 
-                    VALUES (%s, %s)
-                    ON CONFLICT (user_id) 
-                    DO UPDATE SET context = EXCLUDED.context
-                """, (user_id, context_json))
-            else:
+                
+                # Parse the existing context or create new list
+                if context_blob:
+                    context = json.loads(context_blob)
+                else:
+                    context = []
+                
+                # Append all responses to the context atomically
+                context.extend(responses)
+                
+                # Save the updated context back to the database
+                context_json = json.dumps(context)
+                
                 # SQLite INSERT OR REPLACE
                 if context_blob:
                     self.cursor.execute(
@@ -136,5 +154,5 @@ class State:
                         "INSERT INTO chats (user_id, context) VALUES (?, ?)",
                         (user_id, context_json)
                     )
-            
-            self.conn.commit()
+                
+                self.conn.commit()
