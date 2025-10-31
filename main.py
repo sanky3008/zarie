@@ -115,7 +115,25 @@ class TelegramBot:
         print("Press Ctrl+C to stop")
         
         # Start the bot
-        app.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Use webhooks in production, otherwise poll
+        webhook_url = os.getenv("WEBHOOK_URL")
+        port = int(os.getenv("PORT", "8443"))
+
+        if webhook_url:
+            # Production mode with webhooks
+            print(f"Starting webhook on port {port}")
+            # The URL path is often set to the bot token for simple security
+            url_path = self.token.split(':')[-1]
+            app.run_webhook(
+                listen="0.0.0.0",
+                port=port,
+                url_path=url_path,
+                webhook_url=f"{webhook_url}/{url_path}"
+            )
+        else:
+            # Development mode with polling
+            print("Starting polling...")
+            app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 def main():

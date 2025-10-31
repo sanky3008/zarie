@@ -3,6 +3,13 @@ import json
 import threading
 import os
 
+class _DummyLock:
+    """A lock that doesn't do anything."""
+    def __enter__(self):
+        pass
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 class State:
     def __init__(self, db_path=None):
         """Initialize the State class and connect to the database."""
@@ -11,7 +18,7 @@ class State:
             # Go up two levels from state.py -> state/ -> alpha-v0.1/ -> Donna/
             db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'chats.db')
         self.db_path = db_path
-        self.lock = threading.Lock()
+        self.lock = _DummyLock() # Start with a dummy lock
         
         # Check if DATABASE_URL exists (Railway PostgreSQL)
         database_url = os.getenv('DATABASE_URL')
@@ -31,6 +38,7 @@ class State:
             self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA busy_timeout=30000")
             self.cursor = self.conn.cursor()
+            self.lock = threading.Lock() # Use a real lock only for SQLite
         
         # Create the table
         self._initialize_database()
