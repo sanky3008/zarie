@@ -206,7 +206,10 @@ class WorkerAgent:
                 model="deepseek/deepseek-chat",
                 messages=messages,
                 tools=self.tools,
-                tool_choice="auto"
+                tool_choice="auto",
+                fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Fallback to Together AI if primary fails
+                timeout=30,
+                num_retries=2
             )
             
             assistant_msg = response.choices[0].message
