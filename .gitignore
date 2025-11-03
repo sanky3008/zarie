@@ -62,3 +62,4 @@ htmlcov/
 *.tar.gz
 *.zip
 
+scripts/
