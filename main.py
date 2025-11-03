@@ -86,8 +86,12 @@ class TelegramBot:
             )
             
             # Send the response back to the user
-            if response and response.get('content'):
-                await update.message.reply_text(response['content'])
+            if response and 'content' in response:
+                content = response.get('content', '').strip()
+                # If content is empty, agent chose not to reply - don't send any message
+                if content:
+                    await update.message.reply_text(response['content'])
+                # If empty, silently skip (agent doesn't want to reply)
             else:
                 await update.message.reply_text("Sorry, I couldn't process that. Try again?")
         
