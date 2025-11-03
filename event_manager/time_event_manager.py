@@ -202,7 +202,17 @@ def update_next_trigger(event_id, recurrence_rule):
             rrule_kwargs['interval'] = int(rule_dict['INTERVAL'])
         
         if 'BYDAY' in rule_dict:
-            rrule_kwargs['byweekday'] = [rrule_module.weekday(day) for day in rule_dict['BYDAY'].split(',')]
+            # Map string abbreviations to rrule weekday constants
+            weekday_map = {
+                'MO': rrule_module.MO,
+                'TU': rrule_module.TU,
+                'WE': rrule_module.WE,
+                'TH': rrule_module.TH,
+                'FR': rrule_module.FR,
+                'SA': rrule_module.SA,
+                'SU': rrule_module.SU
+            }
+            rrule_kwargs['byweekday'] = [weekday_map[day.strip()] for day in rule_dict['BYDAY'].split(',')]
         
         if 'BYMONTHDAY' in rule_dict:
             rrule_kwargs['bymonthday'] = [int(day) for day in rule_dict['BYMONTHDAY'].split(',')]
