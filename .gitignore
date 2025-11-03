@@ -62,7 +62,3 @@ htmlcov/
 *.tar.gz
 *.zip
 
-# Migration Scripts (temporary)
-scripts/
-scripts/migrate_context_format.py
-scripts/cleanup_incomplete_tool_calls.py
