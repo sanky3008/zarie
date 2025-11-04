@@ -289,32 +289,64 @@ def update_next_trigger(event_id, recurrence_rule):
             try:
                 next_occurrence = rule.after(now_utc)
                 if next_occurrence is None:
-                    # Fallback: now + interval
-                    interval = rrule_kwargs.get('interval', 1)
-                    next_occurrence = now_utc + timedelta(minutes=interval)
+                    # No more occurrences (likely due to COUNT/UNTIL)
+                    print(f"  No future occurrences available, disabling event")
+                    disable_event(event_id)
+                    return
                 print(f"  Adjusted to next future occurrence: {next_occurrence} UTC")
             except Exception as e:
                 print(f"  Error recalculating from now: {e}")
-                # Fallback: now + interval
-                interval = rrule_kwargs.get('interval', 1)
-                next_occurrence = now_utc + timedelta(minutes=interval)
+                # Only use fallback if there's no COUNT restriction
+                if 'COUNT' not in rule_dict:
+                    interval = rrule_kwargs.get('interval', 1)
+                    next_occurrence = now_utc + timedelta(minutes=interval)
+                else:
+                    # If COUNT exists and we hit an error, disable the event
+                    print(f"  Error with COUNT-based rule, disabling event")
+                    disable_event(event_id)
+                    return
         
         print(f"  Next occurrence: {next_occurrence} UTC")
         print(f"  Next occurrence IST: {utc_to_ist(next_occurrence)}")
         
-        # Update database
+        # Decrement COUNT if it exists (this occurrence has been processed)
+        updated_recurrence_rule = recurrence_rule
+        if 'COUNT' in rule_dict:
+            current_count = int(rule_dict['COUNT'])
+            print(f"  Current COUNT: {current_count}")
+            
+            # Decrement the count
+            new_count = current_count - 1
+            
+            if new_count <= 0:
+                # No more occurrences left after this one
+                print(f"  COUNT exhausted, disabling event")
+                disable_event(event_id)
+                return
+            
+            # Update the COUNT in the rule_dict and rebuild the RRULE string
+            rule_dict['COUNT'] = str(new_count)
+            print(f"  Decremented COUNT to: {new_count}")
+            
+            # Rebuild the recurrence_rule string
+            updated_recurrence_rule = ';'.join([f"{k}={v}" for k, v in rule_dict.items()])
+            print(f"  Updated RRULE: {updated_recurrence_rule}")
+        
+        # Update database with both next_trigger_timestamp and updated recurrence_rule
         if db_type == 'postgres':
             cursor.execute("""
                 UPDATE time_events
-                SET next_trigger_timestamp = %s
+                SET next_trigger_timestamp = %s,
+                    recurrence_rule = %s
                 WHERE id = %s
-            """, (next_occurrence.isoformat(), event_id))
+            """, (next_occurrence.isoformat(), updated_recurrence_rule, event_id))
         else:
             cursor.execute("""
                 UPDATE time_events
-                SET next_trigger_timestamp = ?
+                SET next_trigger_timestamp = ?,
+                    recurrence_rule = ?
                 WHERE id = ?
-            """, (next_occurrence.isoformat(), event_id))
+            """, (next_occurrence.isoformat(), updated_recurrence_rule, event_id))
         
         conn.commit()
         print(f"  ✓ Updated next trigger to {next_occurrence}")
