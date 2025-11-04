@@ -86,6 +86,20 @@ async def process_event(event, worker_agent, donna, executor):
 
             print(f"Worker response: {worker_response}")
             
+            # Check if worker response indicates no update needed
+            if "Worker_Cron_Success_No_Update_Dont_Reply" in worker_response.get('content', ''):
+                print("Skipping Donna invocation - no update needed")
+                # Still update reminder statuses
+                for reminder_obj in recurring_reminders:
+                    update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                    print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+                
+                for reminder_obj in non_recurring_reminders:
+                    disable_event(reminder_obj['id'])
+                    print(f"  ✓ Disabled one-time reminder: {reminder_obj['reminder_name']}")
+                
+                return len(recurring_reminders) > 0
+            
             # Step 2: Send worker response to Donna in thread pool (non-blocking)
             donna_message = f"{worker_response['content']}"
             donna_response = await loop.run_in_executor(
