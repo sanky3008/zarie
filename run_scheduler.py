@@ -131,6 +131,16 @@ async def process_event(event, worker_agent, donna, executor):
         for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
             update_event_status(reminder_obj['id'], 'ACTIVE')
 
+async def process_user_events(events, worker_agent, donna, executor):
+    """Process multiple events for a single user sequentially to avoid race conditions"""
+    for event in events:
+        # Lock all event IDs (both recurring and non-recurring) to prevent reprocessing
+        for reminder_obj in event['reminders'].get('recurring', []) + event['reminders'].get('non_recurring', []):
+            update_event_status(reminder_obj['id'], 'PROCESSING')
+        
+        # Process event sequentially for this user
+        await process_event(event, worker_agent, donna, executor)
+
 async def check_and_process_events(worker_agent, donna, executor):
     """Check for due events and spawn background tasks to process them"""
     try:
@@ -143,16 +153,22 @@ async def check_and_process_events(worker_agent, donna, executor):
         
         print(f"Found {len(events)} due event(s)")
         
-        # Lock and spawn tasks
+        # Group events by user_id to prevent race conditions
+        user_events = {}
         for event in events:
-            # Lock all event IDs (both recurring and non-recurring) to prevent reprocessing
-            for reminder_obj in event['reminders'].get('recurring', []) + event['reminders'].get('non_recurring', []):
-                update_event_status(reminder_obj['id'], 'PROCESSING')
-            
-            # Spawn a background task to handle the event
-            asyncio.create_task(process_event(event, worker_agent, donna, executor))
-            reminder_count = len(event['reminders'].get('recurring', [])) + len(event['reminders'].get('non_recurring', []))
-            print(f"  → Spawned task for: {event['agent_name']} ({reminder_count} reminder(s))")
+            user_id = event['user_id']
+            if user_id not in user_events:
+                user_events[user_id] = []
+            user_events[user_id].append(event)
+        
+        # Spawn one task per user (events for same user run sequentially)
+        for user_id, user_event_list in user_events.items():
+            asyncio.create_task(process_user_events(user_event_list, worker_agent, donna, executor))
+            total_reminders = sum(
+                len(e['reminders'].get('recurring', [])) + len(e['reminders'].get('non_recurring', []))
+                for e in user_event_list
+            )
+            print(f"  → Spawned task for user {user_id}: {len(user_event_list)} event(s), {total_reminders} reminder(s)")
     
     except Exception as e:
         print(f"✗ Error checking events: {e}", flush=True)
