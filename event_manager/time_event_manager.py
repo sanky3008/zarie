@@ -266,8 +266,9 @@ def update_next_trigger(event_id, recurrence_rule):
             next_occurrence = rule.after(dtstart)
             
             if next_occurrence is None:
-                print(f"  Warning: No next occurrence found, using fallback")
-                next_occurrence = dtstart + timedelta(days=1)
+                print(f"  Warning: No next occurrence found, disabling event")
+                disable_event(event_id)
+                return
         except Exception as e:
             print(f"  Error calculating RRULE: {e}")
             # Fallback: add 1 day
