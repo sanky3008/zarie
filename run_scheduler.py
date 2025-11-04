@@ -45,21 +45,32 @@ async def send_telegram_message(user_id: str, message: str):
 async def process_event(event, worker_agent, donna, executor):
     """Process a single time event with timeout"""
     try:
-        event_id = event['id']
         agent_name = event['agent_name']
         user_id = event['user_id']
-        reminder_name = event['reminder_name']
-        reminder_message = event['message']
+        reminders = event['reminders']  # dict with 'recurring' and 'non_recurring' lists
         
-        print(f"Processing: {reminder_name} for user {user_id}")
+        recurring_reminders = reminders.get('recurring', [])
+        non_recurring_reminders = reminders.get('non_recurring', [])
+        all_reminders = recurring_reminders + non_recurring_reminders
+        
+        print(f"Processing: {len(all_reminders)} reminder(s) for agent '{agent_name}' (user {user_id})")
         
         # Add timeout to prevent hanging (180 seconds max per event)
         async def process_single_event():
             # Get trigger timestamp and convert to IST for context
             from dateutil.parser import parse
-            trigger_time_utc = parse(event['next_trigger_timestamp']) if isinstance(event['next_trigger_timestamp'], str) else event['next_trigger_timestamp']
+            trigger_time_utc = parse(all_reminders[0]['next_trigger_timestamp']) if isinstance(all_reminders[0]['next_trigger_timestamp'], str) else all_reminders[0]['next_trigger_timestamp']
             trigger_time_ist = utc_to_ist(trigger_time_utc)
             current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
+            
+            # Build formatted reminder message
+            reminder_text = "Reminder Triggered for the following time_events. Please find below the corresponding messages.\n\n"
+            for reminder_obj in all_reminders:
+                reminder_text += f"Name: {reminder_obj['reminder_name']}\nMessage: {reminder_obj['message']}\n\n"
+            
+            # Build medium string with all reminder names
+            reminder_names = ", ".join([r['reminder_name'] for r in all_reminders])
+            medium = f"REMINDER_TRIGGERED: {reminder_names}"
             
             loop = asyncio.get_event_loop()
             
@@ -69,8 +80,8 @@ async def process_event(event, worker_agent, donna, executor):
                 worker_agent.invoke,
                 agent_name,
                 user_id,
-                reminder_message,
-                f"REMINDER_TRIGGERED: {agent_name}"
+                reminder_text,
+                medium
             )
 
             print(f"Worker response: {worker_response}")
@@ -90,30 +101,35 @@ async def process_event(event, worker_agent, donna, executor):
             # Step 3: Send Donna's response to user via Telegram (async, non-blocking)
             await send_telegram_message(user_id, donna_response['content'])
             
-            # Step 4: Update or disable event
-            if event['is_recurring'] and event['recurrence_rule']:
-                update_next_trigger(event_id, event['recurrence_rule'])
-                print(f"  ✓ Updated next trigger")
-                return True  # Indicate this is a recurring event
-            else:
-                disable_event(event_id)
-                print(f"  ✓ Disabled one-time event")
-                return False  # Indicate this is a one-time event
+            # Step 4: Handle each reminder based on its status
+            for reminder_obj in recurring_reminders:
+                update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+            
+            for reminder_obj in non_recurring_reminders:
+                disable_event(reminder_obj['id'])
+                print(f"  ✓ Disabled one-time reminder: {reminder_obj['reminder_name']}")
+            
+            # Return whether we have any recurring events
+            return len(recurring_reminders) > 0
         
         is_recurring = await asyncio.wait_for(process_single_event(), timeout=180)
         
         # On success, unlock ONLY recurring events (one-time events stay DISABLED)
         if is_recurring:
-            update_event_status(event_id, 'ACTIVE')
+            for reminder_obj in recurring_reminders:
+                update_event_status(reminder_obj['id'], 'ACTIVE')
     
     except asyncio.TimeoutError:
-        print(f"  ✗ Timeout processing {event.get('reminder_name', 'unknown')}")
-        # Unlock the event to allow it to be retried on the next cycle
-        update_event_status(event_id, 'ACTIVE')
+        print(f"  ✗ Timeout processing {event.get('agent_name', 'unknown')}")
+        # Unlock all events to allow them to be retried on the next cycle
+        for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
+            update_event_status(reminder_obj['id'], 'ACTIVE')
     except Exception as e:
         print(f"  ✗ Error: {e}")
-        # Unlock the event to allow it to be retried on the next cycle
-        update_event_status(event_id, 'ACTIVE')
+        # Unlock all events to allow them to be retried on the next cycle
+        for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
+            update_event_status(reminder_obj['id'], 'ACTIVE')
 
 async def check_and_process_events(worker_agent, donna, executor):
     """Check for due events and spawn background tasks to process them"""
@@ -129,12 +145,14 @@ async def check_and_process_events(worker_agent, donna, executor):
         
         # Lock and spawn tasks
         for event in events:
-            # Lock the event to prevent reprocessing
-            update_event_status(event['id'], 'PROCESSING')
+            # Lock all event IDs (both recurring and non-recurring) to prevent reprocessing
+            for reminder_obj in event['reminders'].get('recurring', []) + event['reminders'].get('non_recurring', []):
+                update_event_status(reminder_obj['id'], 'PROCESSING')
             
             # Spawn a background task to handle the event
             asyncio.create_task(process_event(event, worker_agent, donna, executor))
-            print(f"  → Spawned task for: {event['reminder_name']}")
+            reminder_count = len(event['reminders'].get('recurring', [])) + len(event['reminders'].get('non_recurring', []))
+            print(f"  → Spawned task for: {event['agent_name']} ({reminder_count} reminder(s))")
     
     except Exception as e:
         print(f"✗ Error checking events: {e}", flush=True)

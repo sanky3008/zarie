@@ -102,7 +102,7 @@ def get_due_events():
                 AND next_trigger_timestamp <= %s
             """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
-            return [
+            raw_events = [
                 {
                     'id': row[0],
                     'agent_name': row[1],
@@ -125,7 +125,7 @@ def get_due_events():
                 AND next_trigger_timestamp <= ?
             """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
-            return [
+            raw_events = [
                 {
                     'id': row[0],
                     'agent_name': row[1],
@@ -138,6 +138,39 @@ def get_due_events():
                 }
                 for row in rows
             ]
+        
+        # Combine events with same user_id and agent_name, separated by recurring status
+        combined_events = {}
+        for event in raw_events:
+            key = (event['user_id'], event['agent_name'])
+            
+            if key not in combined_events:
+                combined_events[key] = {
+                    'agent_name': event['agent_name'],
+                    'user_id': event['user_id'],
+                    'reminders': {
+                        'recurring': [],
+                        'non_recurring': []
+                    }
+                }
+            
+            # Create reminder object with all relevant details
+            reminder_obj = {
+                'id': event['id'],
+                'reminder_name': event['reminder_name'],
+                'message': event['message'],
+                'is_recurring': event['is_recurring'],
+                'recurrence_rule': event['recurrence_rule'],
+                'next_trigger_timestamp': event['next_trigger_timestamp']
+            }
+            
+            # Add to appropriate list
+            if event['is_recurring'] and event['recurrence_rule']:
+                combined_events[key]['reminders']['recurring'].append(reminder_obj)
+            else:
+                combined_events[key]['reminders']['non_recurring'].append(reminder_obj)
+        
+        return list(combined_events.values())
     finally:
         return_db_connection(conn, db_type)
 
