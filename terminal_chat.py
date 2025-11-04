@@ -3,7 +3,7 @@ from datetime import datetime
 
 def main():
     """Terminal chat application using the Agent."""
-    user_id = "terminal_user_2"
+    user_id = "terminal_user_31"
     medium = "TERMINAL2"
     
     agent = Agent()
