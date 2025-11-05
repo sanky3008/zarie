@@ -146,6 +146,9 @@ class Directory:
                     )
                 """)
                 
+                # Note: SQLite doesn't support ALTER COLUMN DROP NOT NULL directly
+                # Purpose column should be nullable in this schema
+                
                 # Create new context table
                 self.cursor.execute("""
                     CREATE TABLE IF NOT EXISTS worker_agent_context (
