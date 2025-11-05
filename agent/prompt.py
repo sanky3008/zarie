@@ -632,7 +632,7 @@ def _fetch_worker_agents(user_id):
                 cursor = conn.cursor(cursor_factory=RealDictCursor)
                 cursor.execute("""
                     SELECT agent_name, purpose 
-                    FROM worker_agent_directory 
+                    FROM worker_agent_directory_v2 
                     WHERE user_id = %s
                     ORDER BY updated_at DESC
                 """, (user_id,))
@@ -647,7 +647,7 @@ def _fetch_worker_agents(user_id):
                 cursor = sqlite_conn.cursor()
                 cursor.execute("""
                     SELECT agent_name, purpose 
-                    FROM worker_agent_directory 
+                    FROM worker_agent_directory_v2 
                     WHERE user_id = ?
                     ORDER BY updated_at DESC
                 """, (user_id,))

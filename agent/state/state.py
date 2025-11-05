@@ -81,50 +81,142 @@ class State:
         pass
     
     def _initialize_database(self):
-        """Create the chats table if it doesn't exist."""
+        """Create the chats table and chats_context table if they don't exist."""
         if self.db_type == 'postgres':
             # Get a temporary connection from the pool to initialize the DB
             conn = self.pool.getconn()
             try:
                 with conn.cursor() as cursor:
+                    # Keep old table for backward compatibility
                     cursor.execute("""
                         CREATE TABLE IF NOT EXISTS chats (
                             user_id TEXT PRIMARY KEY,
                             context TEXT NOT NULL
                         )
                     """)
+                    
+                    # Create new structured context table
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS chats_context (
+                            id SERIAL PRIMARY KEY,
+                            user_id TEXT NOT NULL,
+                            message_sequence INTEGER NOT NULL,
+                            role TEXT NOT NULL,
+                            content TEXT,
+                            tool_calls TEXT,
+                            tool_call_id TEXT,
+                            tool_name TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(user_id, message_sequence)
+                        )
+                    """)
+                    
+                    # Create index for efficient querying
+                    cursor.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_chats_context_user_seq 
+                        ON chats_context(user_id, message_sequence)
+                    """)
                 conn.commit()
             finally:
                 self.pool.putconn(conn)
         else:  # sqlite
             with self.lock:
+                # Keep old table for backward compatibility
                 self.cursor.execute("""
                     CREATE TABLE IF NOT EXISTS chats (
                         user_id TEXT PRIMARY KEY,
                         context TEXT NOT NULL
                     )
                 """)
+                
+                # Create new structured context table
+                self.cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS chats_context (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT NOT NULL,
+                        message_sequence INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT,
+                        tool_calls TEXT,
+                        tool_call_id TEXT,
+                        tool_name TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(user_id, message_sequence)
+                    )
+                """)
+                
+                # Create index for efficient querying
+                self.cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_chats_context_user_seq 
+                    ON chats_context(user_id, message_sequence)
+                """)
                 self.conn.commit()
     
     def get_context(self, user_id):
-        """Get the context BLOB for a given user_id."""
+        """Get the context list for a given user_id from chats_context table."""
         if self.db_type == 'postgres':
             conn = self.pool.getconn()
             try:
                 with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
-                    cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
-                    row = cursor.fetchone()
-                    return row['context'] if row else None
+                    cursor.execute("""
+                        SELECT role, content, tool_calls, tool_call_id, tool_name 
+                        FROM chats_context 
+                        WHERE user_id = %s 
+                        ORDER BY message_sequence ASC
+                    """, (user_id,))
+                    rows = cursor.fetchall()
+                    
+                    # Reconstruct messages list
+                    messages = []
+                    for row in rows:
+                        msg = {
+                            "role": row['role'],
+                            "content": row['content']
+                        }
+                        # Add tool_calls if present
+                        if row['tool_calls']:
+                            msg['tool_calls'] = json.loads(row['tool_calls'])
+                        # Add tool metadata for tool responses
+                        if row['tool_call_id']:
+                            msg['tool_call_id'] = row['tool_call_id']
+                        if row['tool_name']:
+                            msg['tool_name'] = row['tool_name']
+                        messages.append(msg)
+                    
+                    return json.dumps(messages) if messages else None
             finally:
                 self.pool.putconn(conn)
         else:
             with self.lock:
-                self.cursor.execute("SELECT context FROM chats WHERE user_id = ?", (user_id,))
-                row = self.cursor.fetchone()
-                return row[0] if row else None
+                self.cursor.execute("""
+                    SELECT role, content, tool_calls, tool_call_id, tool_name 
+                    FROM chats_context 
+                    WHERE user_id = ? 
+                    ORDER BY message_sequence ASC
+                """, (user_id,))
+                rows = self.cursor.fetchall()
+                
+                # Reconstruct messages list
+                messages = []
+                for row in rows:
+                    msg = {
+                        "role": row[0],
+                        "content": row[1]
+                    }
+                    # Add tool_calls if present
+                    if row[2]:
+                        msg['tool_calls'] = json.loads(row[2])
+                    # Add tool metadata for tool responses
+                    if row[3]:
+                        msg['tool_call_id'] = row[3]
+                    if row[4]:
+                        msg['tool_name'] = row[4]
+                    messages.append(msg)
+                
+                return json.dumps(messages) if messages else None
     
     def add_context(self, user_id, response_or_responses):
-        """Add context for a given user_id. Can handle single response or list of responses."""
+        """Add context for a given user_id to chats_context table. Can handle single response or list of responses."""
         if isinstance(response_or_responses, list):
             responses = response_or_responses
         else:
@@ -133,55 +225,76 @@ class State:
         if self.db_type == 'postgres':
             conn = self.pool.getconn()
             try:
-                with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
-                    # Get current context
-                    cursor.execute("SELECT context FROM chats WHERE user_id = %s", (user_id,))
-                    row = cursor.fetchone()
-                    context_blob = row['context'] if row else None
+                with conn.cursor() as cursor:
+                    # Get current max sequence number
+                    cursor.execute(
+                        "SELECT COALESCE(MAX(message_sequence), 0) FROM chats_context WHERE user_id = %s",
+                        (user_id,)
+                    )
+                    max_seq = cursor.fetchone()[0]
                     
-                    # Modify context
-                    context = json.loads(context_blob) if context_blob else []
-                    context.extend(responses)
-                    context_json = json.dumps(context)
-                    
-                    # Write back to DB
-                    cursor.execute("""
-                        INSERT INTO chats (user_id, context) VALUES (%s, %s)
-                        ON CONFLICT (user_id) DO UPDATE SET context = EXCLUDED.context
-                    """, (user_id, context_json))
+                    # Insert each message with incremented sequence
+                    for i, response in enumerate(responses):
+                        seq = max_seq + i + 1
+                        role = response.get('role')
+                        content = response.get('content')
+                        tool_calls = None
+                        tool_call_id = None
+                        tool_name = None
+                        
+                        # Extract tool_calls if present
+                        if 'tool_calls' in response:
+                            tool_calls = json.dumps(response['tool_calls'])
+                        
+                        # Extract tool metadata if present
+                        if 'tool_call_id' in response:
+                            tool_call_id = response['tool_call_id']
+                        if 'tool_name' in response:
+                            tool_name = response['tool_name']
+                        
+                        cursor.execute("""
+                            INSERT INTO chats_context 
+                            (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name))
+                
                 conn.commit()
             finally:
                 self.pool.putconn(conn)
         else:
             with self.lock:
-                # Get the current context
-                self.cursor.execute("SELECT context FROM chats WHERE user_id = ?", (user_id,))
+                # Get the current max sequence number
+                self.cursor.execute(
+                    "SELECT COALESCE(MAX(message_sequence), 0) FROM chats_context WHERE user_id = ?",
+                    (user_id,)
+                )
                 row = self.cursor.fetchone()
-                context_blob = row[0] if row else None
+                max_seq = row[0] if row else 0
                 
-                # Parse the existing context or create new list
-                if context_blob:
-                    context = json.loads(context_blob)
-                else:
-                    context = []
-                
-                # Append all responses to the context atomically
-                context.extend(responses)
-                
-                # Save the updated context back to the database
-                context_json = json.dumps(context)
-                
-                # SQLite INSERT OR REPLACE
-                if context_blob:
-                    self.cursor.execute(
-                        "UPDATE chats SET context = ? WHERE user_id = ?",
-                        (context_json, user_id)
-                    )
-                else:
-                    self.cursor.execute(
-                        "INSERT INTO chats (user_id, context) VALUES (?, ?)",
-                        (context_json, user_id)
-                    )
+                # Insert each message with incremented sequence
+                for i, response in enumerate(responses):
+                    seq = max_seq + i + 1
+                    role = response.get('role')
+                    content = response.get('content')
+                    tool_calls = None
+                    tool_call_id = None
+                    tool_name = None
+                    
+                    # Extract tool_calls if present
+                    if 'tool_calls' in response:
+                        tool_calls = json.dumps(response['tool_calls'])
+                    
+                    # Extract tool metadata if present
+                    if 'tool_call_id' in response:
+                        tool_call_id = response['tool_call_id']
+                    if 'tool_name' in response:
+                        tool_name = response['tool_name']
+                    
+                    self.cursor.execute("""
+                        INSERT INTO chats_context 
+                        (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name))
                 
                 self.conn.commit()
 
