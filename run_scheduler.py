@@ -90,15 +90,20 @@ async def process_event(event, worker_agent, donna, executor):
             if "Worker_Cron_Success_No_Update_Dont_Reply" in worker_response.get('content', ''):
                 print("Skipping Donna invocation - no update needed")
                 # Still update reminder statuses
+                active_recurring_ids = []
                 for reminder_obj in recurring_reminders:
-                    update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
-                    print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+                    is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                    if is_active:
+                        active_recurring_ids.append(reminder_obj['id'])
+                        print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+                    else:
+                        print(f"  ✓ Disabled recurring reminder (COUNT exhausted): {reminder_obj['reminder_name']}")
                 
                 for reminder_obj in non_recurring_reminders:
                     disable_event(reminder_obj['id'])
                     print(f"  ✓ Disabled one-time reminder: {reminder_obj['reminder_name']}")
                 
-                return len(recurring_reminders) > 0
+                return len(active_recurring_ids) > 0, active_recurring_ids
             
             # Step 2: Send worker response to Donna in thread pool (non-blocking)
             donna_message = f"{worker_response['content']}"
@@ -116,23 +121,28 @@ async def process_event(event, worker_agent, donna, executor):
             await send_telegram_message(user_id, donna_response['content'])
             
             # Step 4: Handle each reminder based on its status
+            active_recurring_ids = []
             for reminder_obj in recurring_reminders:
-                update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
-                print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                if is_active:
+                    active_recurring_ids.append(reminder_obj['id'])
+                    print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
+                else:
+                    print(f"  ✓ Disabled recurring reminder (COUNT exhausted): {reminder_obj['reminder_name']}")
             
             for reminder_obj in non_recurring_reminders:
                 disable_event(reminder_obj['id'])
                 print(f"  ✓ Disabled one-time reminder: {reminder_obj['reminder_name']}")
             
-            # Return whether we have any recurring events
-            return len(recurring_reminders) > 0
+            # Return whether we have any active recurring events
+            return len(active_recurring_ids) > 0, active_recurring_ids
         
-        is_recurring = await asyncio.wait_for(process_single_event(), timeout=180)
+        is_recurring, active_recurring_ids = await asyncio.wait_for(process_single_event(), timeout=180)
         
-        # On success, unlock ONLY recurring events (one-time events stay DISABLED)
+        # On success, unlock ONLY active recurring events (one-time events stay DISABLED)
         if is_recurring:
-            for reminder_obj in recurring_reminders:
-                update_event_status(reminder_obj['id'], 'ACTIVE')
+            for event_id in active_recurring_ids:
+                update_event_status(event_id, 'ACTIVE')
     
     except asyncio.TimeoutError:
         print(f"  ✗ Timeout processing {event.get('agent_name', 'unknown')}")

@@ -175,7 +175,8 @@ def get_due_events():
         return_db_connection(conn, db_type)
 
 def update_next_trigger(event_id, recurrence_rule):
-    """Calculate and update next trigger time for recurring events"""
+    """Calculate and update next trigger time for recurring events
+    Returns: True if event is still active, False if it was disabled"""
     conn, db_type = get_db_connection()
     
     try:
@@ -194,7 +195,7 @@ def update_next_trigger(event_id, recurrence_rule):
         row = cursor.fetchone()
         if not row:
             print(f"Event {event_id} not found")
-            return
+            return False
         
         current_trigger = row[0] if db_type == 'postgres' else row[0]
         dtstart = parse(current_trigger) if isinstance(current_trigger, str) else current_trigger
@@ -268,7 +269,7 @@ def update_next_trigger(event_id, recurrence_rule):
             if next_occurrence is None:
                 print(f"  Warning: No next occurrence found, disabling event")
                 disable_event(event_id)
-                return
+                return False
         except Exception as e:
             print(f"  Error calculating RRULE: {e}")
             # Fallback: add 1 day
@@ -292,7 +293,7 @@ def update_next_trigger(event_id, recurrence_rule):
                     # No more occurrences (likely due to COUNT/UNTIL)
                     print(f"  No future occurrences available, disabling event")
                     disable_event(event_id)
-                    return
+                    return False
                 print(f"  Adjusted to next future occurrence: {next_occurrence} UTC")
             except Exception as e:
                 print(f"  Error recalculating from now: {e}")
@@ -304,7 +305,7 @@ def update_next_trigger(event_id, recurrence_rule):
                     # If COUNT exists and we hit an error, disable the event
                     print(f"  Error with COUNT-based rule, disabling event")
                     disable_event(event_id)
-                    return
+                    return False
         
         print(f"  Next occurrence: {next_occurrence} UTC")
         print(f"  Next occurrence IST: {utc_to_ist(next_occurrence)}")
@@ -322,7 +323,7 @@ def update_next_trigger(event_id, recurrence_rule):
                 # No more occurrences left after this one
                 print(f"  COUNT exhausted, disabling event")
                 disable_event(event_id)
-                return
+                return False
             
             # Update the COUNT in the rule_dict and rebuild the RRULE string
             rule_dict['COUNT'] = str(new_count)
@@ -350,10 +351,12 @@ def update_next_trigger(event_id, recurrence_rule):
         
         conn.commit()
         print(f"  ✓ Updated next trigger to {next_occurrence}")
+        return True
     except Exception as e:
         print(f"  ✗ Error updating next trigger: {e}")
         import traceback
         traceback.print_exc()
+        return False
     finally:
         return_db_connection(conn, db_type)
 
