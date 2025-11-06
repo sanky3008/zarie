@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 import asyncio
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
+import nest_asyncio
+
+# Allow nested event loops for fastmcp
+nest_asyncio.apply()
 
 load_dotenv()
 

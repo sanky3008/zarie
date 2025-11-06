@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from agent.tools import web_search, invoke_worker_agent
+from agent.tools import invoke_worker_agent, get_mcp_client_manager
 load_dotenv()
 
 class Agent:
@@ -19,59 +19,88 @@ class Agent:
         self.state = State(db_path=db_path)
         # LiteLLM reads OPENAI_API_KEY from environment variables automatically
         
+        # Initialize MCP client manager for Brave Search
+        try:
+            self.mcp_manager = get_mcp_client_manager()
+        except ValueError as e:
+            print(f"Warning: MCP client not available: {e}")
+            self.mcp_manager = None
+        
         # Initialize tools and tool functions
         self.tools = self._get_tools()
         self.tool_functions = {
-            "web_search": web_search,
             "invoke_worker_agent": invoke_worker_agent
         }
+        # Add MCP tools to tool_functions dynamically
+        if self.mcp_manager:
+            try:
+                mcp_tools = self.mcp_manager.get_tools()
+                for tool in mcp_tools:
+                    # Create a wrapper function for each MCP tool
+                    self.tool_functions[tool.name] = self._create_mcp_tool_wrapper(tool.name)
+            except Exception as e:
+                print(f"Warning: Could not load MCP tools: {e}")
     
     def _get_tools(self):
-        """Define and return the tools array for the agent."""
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "description": "Search the web for real-time information. Use this when you need current information, news, facts, or anything that requires up-to-date knowledge from the internet.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query to look up on the web"
-                            }
+        """Define and return the tools array for the agent (local + MCP tools)."""
+        tools = []
+        
+        # Add MCP tools (Brave Search, etc.)
+        if self.mcp_manager:
+            try:
+                mcp_tools = self.mcp_manager.get_tools()
+                for tool in mcp_tools:
+                    # Convert MCP tool format to LiteLLM format
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.inputSchema  # Already in JSON Schema format
+                        }
+                    })
+            except Exception as e:
+                print(f"Warning: Could not load MCP tools: {e}")
+        
+        # Add local tools
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "invoke_worker_agent",
+                "description": "Create or invoke a worker agent to handle automated workflows, reminders, and recurring tasks. Use this when the user asks to set up reminders, schedule events, or needs automated task management. Each worker agent maintains its own context and can use tools like web search and time event management.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "agent_name": {
+                            "type": "string",
+                            "description": "Unique name for the worker agent (e.g., 'reminder_agent', 'cricket_tracker', 'task_manager'). Use descriptive names that reflect the agent's purpose."
                         },
-                        "required": ["query"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "invoke_worker_agent",
-                    "description": "Create or invoke a worker agent to handle automated workflows, reminders, and recurring tasks. Use this when the user asks to set up reminders, schedule events, or needs automated task management. Each worker agent maintains its own context and can use tools like web search and time event management.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "agent_name": {
-                                "type": "string",
-                                "description": "Unique name for the worker agent (e.g., 'reminder_agent', 'cricket_tracker', 'task_manager'). Use descriptive names that reflect the agent's purpose."
-                            },
-                            "purpose": {
-                                "type": "string",
-                                "description": "Brief description of what this agent is responsible for (e.g., 'Handle weekly reminders', 'Track cricket scores', 'Manage daily tasks')"
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "The instruction or task to give to the worker agent"
-                            }
+                        "purpose": {
+                            "type": "string",
+                            "description": "Brief description of what this agent is responsible for (e.g., 'Handle weekly reminders', 'Track cricket scores', 'Manage daily tasks')"
                         },
-                        "required": ["agent_name", "purpose", "message"]
-                    }
+                        "message": {
+                            "type": "string",
+                            "description": "The instruction or task to give to the worker agent"
+                        }
+                    },
+                    "required": ["agent_name", "purpose", "message"]
                 }
             }
-        ]
+        })
+        
+        return tools
+    
+    def _create_mcp_tool_wrapper(self, tool_name):
+        """Create a wrapper function for an MCP tool."""
+        def mcp_tool_wrapper(**arguments):
+            if self.mcp_manager:
+                result = self.mcp_manager.call_tool(tool_name, arguments)
+                # Result is now a string from fastmcp
+                return result
+            else:
+                return "MCP client not available"
+        return mcp_tool_wrapper
 
     def invoke(self, user_id, message, medium, timestamp=None):
         """Invoke the agent with a user message and medium."""
@@ -188,15 +217,23 @@ class Agent:
                     # Execute the tool function
                     if function_name in self.tool_functions:
                         tool_result = self.tool_functions[function_name](**function_args)
-                        
-                        # Prepare tool response
-                        tool_response = {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": function_name,
-                            "content": json.dumps(tool_result)
-                        }
-                        tool_responses.append(tool_response)
+                    else:
+                        tool_result = f"Error: Tool '{function_name}' not found"
+                    
+                    # Prepare tool response - always add response for every tool call
+                    # Convert tool_result to string if it's not already
+                    if isinstance(tool_result, str):
+                        content = tool_result
+                    else:
+                        content = json.dumps(tool_result)
+                    
+                    tool_response = {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "content": content
+                    }
+                    tool_responses.append(tool_response)
                 
                 # Store tool call request and all responses atomically
                 all_tool_messages = [tool_call_request] + tool_responses

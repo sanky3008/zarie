@@ -1,13 +1,8 @@
 from worker_agent.agent.agent import WorkerAgent
 from worker_agent.directory.directory import Directory
-
-# Optional imports
-PERPLEXITY_AVAILABLE = False
-try:
-    from perplexity import Perplexity
-    PERPLEXITY_AVAILABLE = True
-except ImportError:
-    pass
+import os
+import asyncio
+from fastmcp import Client
 
 try:
     from dotenv import load_dotenv
@@ -15,9 +10,68 @@ try:
 except ImportError:
     pass
 
-# Shared worker agent instance
+# Shared instances
 _worker_agent = None
 _directory = None
+_mcp_tools_cache = None
+
+
+class MCPManager:
+    """Simple fastmcp wrapper for sync code."""
+    
+    def get_tools(self):
+        """Get MCP tools (sync wrapper)."""
+        global _mcp_tools_cache
+        if _mcp_tools_cache:
+            return _mcp_tools_cache
+        
+        async def _fetch():
+            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+            if not server_url:
+                raise ValueError("BRAVE_MCP_SERVER_URL not set")
+            
+            client = Client(server_url)
+            async with client:
+                tools = await client.list_tools()
+                return tools
+        
+        try:
+            _mcp_tools_cache = asyncio.run(_fetch())
+            return _mcp_tools_cache
+        except Exception as e:
+            print(f"Error fetching MCP tools: {e}")
+            return []
+    
+    def call_tool(self, name, arguments):
+        """Call MCP tool (sync wrapper). Returns string result."""
+        async def _execute():
+            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+            if not server_url:
+                raise ValueError("BRAVE_MCP_SERVER_URL not set")
+            
+            client = Client(server_url)
+            async with client:
+                result = await client.call_tool(name, arguments)
+                # fastmcp returns CallToolResult - extract text content
+                if hasattr(result, 'content') and result.content:
+                    # Content is a list of ContentBlocks
+                    texts = []
+                    for content in result.content:
+                        if hasattr(content, 'text'):
+                            texts.append(content.text)
+                    return "\n".join(texts) if texts else str(result)
+                return str(result)
+        
+        try:
+            return asyncio.run(_execute())
+        except Exception as e:
+            return f"Error calling {name}: {str(e)}"
+
+
+def get_mcp_client_manager():
+    """Get MCP client manager."""
+    return MCPManager()
+
 
 def get_worker_agent():
     """Get or create the shared worker agent instance."""
@@ -26,40 +80,13 @@ def get_worker_agent():
         _worker_agent = WorkerAgent()
     return _worker_agent
 
+
 def get_directory():
     """Get or create the shared directory instance."""
     global _directory
     if _directory is None:
         _directory = Directory()
     return _directory
-
-
-def web_search(query: str):
-    """
-    Perform a web search using Perplexity API.
-    
-    Args:
-        query (str): The search query
-        
-    Returns:
-        str: Search results from Perplexity
-    """
-    if not PERPLEXITY_AVAILABLE:
-        return f"Web search not available: {query}"
-    
-    client = Perplexity()
-    
-    completion = client.chat.completions.create(
-        messages=[
-            {
-                "role": "user",
-                "content": query,
-            }
-        ],
-        model="sonar",
-    )
-    
-    return completion.choices[0].message.content
 
 
 def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, message: str):
@@ -104,6 +131,3 @@ def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, message: st
     )
     
     return response.get('content', 'No response from worker agent')
-
-if __name__ == "__main__":
-    print(web_search("dairy free hot chocolate restaurants Sarjapur Road Bangalore"))

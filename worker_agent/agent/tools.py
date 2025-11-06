@@ -1,5 +1,7 @@
 import sqlite3
 import os
+import json
+import asyncio
 from datetime import datetime
 
 # Import timezone helpers
@@ -8,13 +10,8 @@ from event_manager.time_event_manager import parse_ist_time, ist_to_utc
 # Import shared pool from directory
 from worker_agent.directory.directory import get_shared_pool
 
-# Optional imports
-PERPLEXITY_AVAILABLE = False
-try:
-    from perplexity import Perplexity
-    PERPLEXITY_AVAILABLE = True
-except ImportError:
-    pass
+# MCP imports
+from fastmcp import Client
 
 try:
     from dotenv import load_dotenv
@@ -41,29 +38,65 @@ def return_db_connection(conn, db_type):
         pool.putconn(conn)
 
 
-def web_search(query: str):
-    """
-    Perform a web search using Perplexity API.
+# Shared MCP cache
+_mcp_tools_cache = None
+
+
+class MCPManager:
+    """Simple fastmcp wrapper for sync code."""
     
-    Args:
-        query (str): The search query
+    def get_tools(self):
+        """Get MCP tools (sync wrapper)."""
+        global _mcp_tools_cache
+        if _mcp_tools_cache:
+            return _mcp_tools_cache
         
-    Returns:
-        str: Search results from Perplexity
-    """
-    client = Perplexity()
+        async def _fetch():
+            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+            if not server_url:
+                raise ValueError("BRAVE_MCP_SERVER_URL not set")
+            
+            client = Client(server_url)
+            async with client:
+                tools = await client.list_tools()
+                return tools
+        
+        try:
+            _mcp_tools_cache = asyncio.run(_fetch())
+            return _mcp_tools_cache
+        except Exception as e:
+            print(f"Error fetching MCP tools: {e}")
+            return []
     
-    completion = client.chat.completions.create(
-        messages=[
-            {
-                "role": "user",
-                "content": query,
-            }
-        ],
-        model="sonar",
-    )
-    
-    return completion.choices[0].message.content
+    def call_tool(self, name, arguments):
+        """Call MCP tool (sync wrapper). Returns string result."""
+        async def _execute():
+            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+            if not server_url:
+                raise ValueError("BRAVE_MCP_SERVER_URL not set")
+            
+            client = Client(server_url)
+            async with client:
+                result = await client.call_tool(name, arguments)
+                # fastmcp returns CallToolResult - extract text content
+                if hasattr(result, 'content') and result.content:
+                    # Content is a list of ContentBlocks
+                    texts = []
+                    for content in result.content:
+                        if hasattr(content, 'text'):
+                            texts.append(content.text)
+                    return "\n".join(texts) if texts else str(result)
+                return str(result)
+        
+        try:
+            return asyncio.run(_execute())
+        except Exception as e:
+            return f"Error calling {name}: {str(e)}"
+
+
+def get_mcp_client_manager():
+    """Get MCP client manager."""
+    return MCPManager()
 
 
 def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str, 

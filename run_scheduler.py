@@ -7,6 +7,10 @@ import asyncio
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+import nest_asyncio
+
+# Allow nested event loops for fastmcp
+nest_asyncio.apply()
 
 print("=== SCHEDULER STARTING ===", flush=True)
 

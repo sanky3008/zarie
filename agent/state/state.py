@@ -24,10 +24,15 @@ def get_shared_state_pool():
     if _shared_state_pool is not None or _shared_state_sqlite_conn is not None:
         return _shared_state_pool, _shared_state_db_type, _shared_state_sqlite_conn, _shared_state_sqlite_lock, _shared_state_realdict_cursor
     
+    # Check environment to determine which database to use
+    env = os.getenv('ENV', 'LOCAL').upper()
     database_url = os.getenv('DATABASE_URL')
     
-    if database_url:
-        # Use PostgreSQL with connection pool
+    # Force PROD to use PostgreSQL, LOCAL to use SQLite
+    use_postgres = (env == 'PROD' and database_url is not None)
+    
+    if use_postgres:
+        # Use PostgreSQL with connection pool (only if ENV=PROD and DATABASE_URL exists)
         import psycopg2.pool
         from psycopg2.extras import RealDictCursor
         
@@ -36,7 +41,7 @@ def get_shared_state_pool():
         _shared_state_realdict_cursor = RealDictCursor
         _shared_state_sqlite_lock = None
     else:
-        # Use SQLite for local development
+        # Use SQLite for local development (default unless ENV=PROD)
         _shared_state_db_type = 'sqlite'
         # Go up 4 levels from state.py -> state/ -> agent/ -> alpha-v0.1/ -> chats.db
         db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'chats.db')
@@ -58,10 +63,8 @@ class State:
         self.db_path = db_path
         self.lock = _DummyLock() # Start with a dummy lock
         
-        # Check if DATABASE_URL exists (Railway PostgreSQL)
-        database_url = os.getenv('DATABASE_URL')
-        
         # Use shared pool instead of creating new pool
+        # The pool respects ENV variable (PROD=postgres, LOCAL=sqlite)
         self.pool, self.db_type, self.conn, self.lock, self.RealDictCursor = get_shared_state_pool()
         
         if self.db_type == 'postgres':

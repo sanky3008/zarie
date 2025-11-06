@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from worker_agent.agent.tools import web_search, set_time_event, delete_time_event
+from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager
 load_dotenv()
 
 class WorkerAgent:
@@ -23,34 +23,52 @@ class WorkerAgent:
         self.agent_name = None
         self.user_id = None
         
+        # Initialize MCP client manager for Brave Search
+        try:
+            self.mcp_manager = get_mcp_client_manager()
+        except ValueError as e:
+            print(f"Warning: MCP client not available: {e}")
+            self.mcp_manager = None
+        
         # Initialize tools and tool functions
         self.tools = self._get_tools()
         self.tool_functions = {
-            "web_search": web_search,
             "set_time_event": set_time_event,
             "delete_time_event": delete_time_event
         }
+        # Add MCP tools to tool_functions dynamically
+        if self.mcp_manager:
+            try:
+                mcp_tools = self.mcp_manager.get_tools()
+                for tool in mcp_tools:
+                    # Create a wrapper function for each MCP tool
+                    self.tool_functions[tool.name] = self._create_mcp_tool_wrapper(tool.name)
+            except Exception as e:
+                print(f"Warning: Could not load MCP tools: {e}")
     
     def _get_tools(self):
-        """Define and return the tools array for the worker agent."""
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "description": "Search the web for real-time information. Use this when you need current information, news, facts, or anything that requires up-to-date knowledge from the internet.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query to look up on the web"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            },
+        """Define and return the tools array for the worker agent (local + MCP tools)."""
+        tools = []
+        
+        # Add MCP tools (Brave Search, etc.)
+        if self.mcp_manager:
+            try:
+                mcp_tools = self.mcp_manager.get_tools()
+                for tool in mcp_tools:
+                    # Convert MCP tool format to LiteLLM format
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "parameters": tool.inputSchema  # Already in JSON Schema format
+                        }
+                    })
+            except Exception as e:
+                print(f"Warning: Could not load MCP tools: {e}")
+        
+        # Add local tools (time events)
+        tools.append(
             {
                 "type": "function",
                 "function": {
@@ -108,7 +126,9 @@ class WorkerAgent:
                         "required": ["next_trigger_timestamp", "is_recurring", "reminder_name"]
                     }
                 }
-            },
+            }
+        )
+        tools.append(
             {
                 "type": "function",
                 "function": {
@@ -126,7 +146,20 @@ class WorkerAgent:
                     }
                 }
             }
-        ]
+        )
+        
+        return tools
+    
+    def _create_mcp_tool_wrapper(self, tool_name):
+        """Create a wrapper function for an MCP tool."""
+        def mcp_tool_wrapper(**arguments):
+            if self.mcp_manager:
+                result = self.mcp_manager.call_tool(tool_name, arguments)
+                # Result is now a string from fastmcp
+                return result
+            else:
+                return "MCP client not available"
+        return mcp_tool_wrapper
 
     def invoke(self, agent_name, user_id, message, medium="", timestamp=None):
         """Invoke the worker agent with a message."""
@@ -247,15 +280,23 @@ class WorkerAgent:
                     # Execute the tool function
                     if function_name in self.tool_functions:
                         tool_result = self.tool_functions[function_name](**function_args)
-                        
-                        # Prepare tool response
-                        tool_response = {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": function_name,
-                            "content": json.dumps(tool_result)
-                        }
-                        tool_responses.append(tool_response)
+                    else:
+                        tool_result = f"Error: Tool '{function_name}' not found"
+                    
+                    # Prepare tool response - always add response for every tool call
+                    # Convert tool_result to string if it's not already
+                    if isinstance(tool_result, str):
+                        content = tool_result
+                    else:
+                        content = json.dumps(tool_result)
+                    
+                    tool_response = {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "content": content
+                    }
+                    tool_responses.append(tool_response)
                 
                 # Store tool call request and all responses atomically
                 all_tool_messages = [tool_call_request] + tool_responses
