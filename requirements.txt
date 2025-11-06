@@ -1,5 +1,5 @@
 litellm>=1.65.0
-python-telegram-bot>=20.0
+python-telegram-bot>=21.0
 python-dotenv>=1.0.0
 psycopg2-binary>=2.9.0
 tavily-python>=0.7.0
@@ -7,8 +7,6 @@ perplexityai
 python-dateutil>=2.8.0
 pytz>=2024.1
 mcp
-httpx
+httpx>=0.24.0
 fastmcp
-nest_asyncio
-
-
+aiohttp>=3.9.0
