@@ -1,7 +1,8 @@
 from agent.agent import Agent
 from datetime import datetime
+import asyncio
 
-def main():
+async def main():
     """Terminal chat application using the Agent."""
     user_id = "terminal_user_31"
     medium = "TERMINAL2"
@@ -24,8 +25,8 @@ def main():
         if not user_input:
             continue
         
-        # Get response from agent with current timestamp
-        response = agent.invoke(user_id, user_input, medium, datetime.now())
+        # Get response from agent with current timestamp (async)
+        response = await agent.invoke(user_id, user_input, medium, datetime.now())
         
         # Display the response
         if response:
@@ -34,4 +35,4 @@ def main():
             print("\nDonna: [No response]")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -43,38 +43,34 @@ _mcp_tools_cache = None
 
 
 class MCPManager:
-    """Simple fastmcp wrapper for sync code."""
+    """Async fastmcp wrapper."""
     
-    def get_tools(self):
-        """Get MCP tools (sync wrapper)."""
+    async def get_tools(self):
+        """Get MCP tools (async)."""
         global _mcp_tools_cache
         if _mcp_tools_cache:
             return _mcp_tools_cache
         
-        async def _fetch():
-            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
-            if not server_url:
-                raise ValueError("BRAVE_MCP_SERVER_URL not set")
-            
-            client = Client(server_url)
-            async with client:
-                tools = await client.list_tools()
-                return tools
+        server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+        if not server_url:
+            raise ValueError("BRAVE_MCP_SERVER_URL not set")
         
         try:
-            _mcp_tools_cache = asyncio.run(_fetch())
-            return _mcp_tools_cache
+            client = Client(server_url)
+            async with client:
+                _mcp_tools_cache = await client.list_tools()
+                return _mcp_tools_cache
         except Exception as e:
             print(f"Error fetching MCP tools: {e}")
             return []
     
-    def call_tool(self, name, arguments):
-        """Call MCP tool (sync wrapper). Returns string result."""
-        async def _execute():
-            server_url = os.getenv("BRAVE_MCP_SERVER_URL")
-            if not server_url:
-                raise ValueError("BRAVE_MCP_SERVER_URL not set")
-            
+    async def call_tool(self, name, arguments):
+        """Call MCP tool (async). Returns string result."""
+        server_url = os.getenv("BRAVE_MCP_SERVER_URL")
+        if not server_url:
+            raise ValueError("BRAVE_MCP_SERVER_URL not set")
+        
+        try:
             client = Client(server_url)
             async with client:
                 result = await client.call_tool(name, arguments)
@@ -87,9 +83,6 @@ class MCPManager:
                             texts.append(content.text)
                     return "\n".join(texts) if texts else str(result)
                 return str(result)
-        
-        try:
-            return asyncio.run(_execute())
         except Exception as e:
             return f"Error calling {name}: {str(e)}"
 

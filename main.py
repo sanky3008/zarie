@@ -3,20 +3,12 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from agent.agent import Agent
 from dotenv import load_dotenv
-import asyncio
 from datetime import datetime, timezone, timedelta
-from concurrent.futures import ThreadPoolExecutor
-import nest_asyncio
-
-# Allow nested event loops for fastmcp
-nest_asyncio.apply()
 
 load_dotenv()
 
 # Shared agent instance for all handlers
 _agent = None
-# Dedicated thread pool executor for agent invocations
-_executor = None
 
 def get_agent():
     """Get or create the shared agent instance."""
@@ -25,20 +17,10 @@ def get_agent():
         _agent = Agent()
     return _agent
 
-def get_executor():
-    """Get or create the shared thread pool executor."""
-    global _executor
-    if _executor is None:
-        # Create executor with max_workers=50 for production
-        # This allows up to 50 concurrent agent invocations
-        _executor = ThreadPoolExecutor(max_workers=50, thread_name_prefix="agent-worker")
-    return _executor
-
 class TelegramBot:
     def __init__(self):
         """Initialize the Telegram bot with the Agent."""
         self.agent = get_agent()
-        self.executor = get_executor()
         self.token = os.getenv("TELEGRAM_BOT_TOKEN")
         
         if not self.token:
@@ -77,12 +59,8 @@ class TelegramBot:
             IST = timezone(timedelta(hours=5, minutes=30))
             message_timestamp_ist = message_timestamp_utc.astimezone(IST)
             
-            # Run the agent invocation in a dedicated thread pool executor
-            # This allows multiple users to be processed concurrently without blocking
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self.executor,  # Use dedicated executor instead of None
-                self.agent.invoke, 
+            # Direct async call to agent - no executor needed!
+            response = await self.agent.invoke(
                 user_id, 
                 message_text, 
                 "End-User via Telegram",

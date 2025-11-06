@@ -6,11 +6,6 @@ import sys
 import asyncio
 import os
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
-import nest_asyncio
-
-# Allow nested event loops for fastmcp
-nest_asyncio.apply()
 
 print("=== SCHEDULER STARTING ===", flush=True)
 
@@ -29,24 +24,12 @@ except Exception as e:
 
 load_dotenv()
 
-# Shared executor for agent invocations
-_executor = None
-
-def get_executor():
-    """Get or create the shared thread pool executor."""
-    global _executor
-    if _executor is None:
-        # Create executor with max_workers=20 for scheduler
-        # This allows up to 20 concurrent event processing tasks
-        _executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="scheduler-worker")
-    return _executor
-
 async def send_telegram_message(user_id: str, message: str):
     """Send a message to a user via Telegram"""
     bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
     await bot.send_message(chat_id=user_id, text=message)
 
-async def process_event(event, worker_agent, donna, executor):
+async def process_event(event, worker_agent, donna):
     """Process a single time event with timeout"""
     try:
         agent_name = event['agent_name']
@@ -76,12 +59,8 @@ async def process_event(event, worker_agent, donna, executor):
             reminder_names = ", ".join([r['reminder_name'] for r in all_reminders])
             medium = f"REMINDER_TRIGGERED: {reminder_names}"
             
-            loop = asyncio.get_event_loop()
-            
-            # Step 1: Invoke worker agent in thread pool (non-blocking)
-            worker_response = await loop.run_in_executor(
-                executor,
-                worker_agent.invoke,
+            # Step 1: Direct async call to worker agent
+            worker_response = await worker_agent.invoke(
                 agent_name,
                 user_id,
                 reminder_text,
@@ -109,11 +88,9 @@ async def process_event(event, worker_agent, donna, executor):
                 
                 return len(active_recurring_ids) > 0, active_recurring_ids
             
-            # Step 2: Send worker response to Donna in thread pool (non-blocking)
+            # Step 2: Direct async call to Donna
             donna_message = f"{worker_response['content']}"
-            donna_response = await loop.run_in_executor(
-                executor,
-                donna.invoke,
+            donna_response = await donna.invoke(
                 user_id,
                 donna_message,
                 f"{agent_name}"
@@ -159,7 +136,7 @@ async def process_event(event, worker_agent, donna, executor):
         for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
             update_event_status(reminder_obj['id'], 'ACTIVE')
 
-async def process_user_events(events, worker_agent, donna, executor):
+async def process_user_events(events, worker_agent, donna):
     """Process multiple events for a single user sequentially to avoid race conditions"""
     for event in events:
         # Lock all event IDs (both recurring and non-recurring) to prevent reprocessing
@@ -167,9 +144,9 @@ async def process_user_events(events, worker_agent, donna, executor):
             update_event_status(reminder_obj['id'], 'PROCESSING')
         
         # Process event sequentially for this user
-        await process_event(event, worker_agent, donna, executor)
+        await process_event(event, worker_agent, donna)
 
-async def check_and_process_events(worker_agent, donna, executor):
+async def check_and_process_events(worker_agent, donna):
     """Check for due events and spawn background tasks to process them"""
     try:
         # Get due events
@@ -191,7 +168,7 @@ async def check_and_process_events(worker_agent, donna, executor):
         
         # Spawn one task per user (events for same user run sequentially)
         for user_id, user_event_list in user_events.items():
-            asyncio.create_task(process_user_events(user_event_list, worker_agent, donna, executor))
+            asyncio.create_task(process_user_events(user_event_list, worker_agent, donna))
             total_reminders = sum(
                 len(e['reminders'].get('recurring', [])) + len(e['reminders'].get('non_recurring', []))
                 for e in user_event_list
@@ -212,7 +189,6 @@ async def main():
     print("Initializing agents...", flush=True)
     worker_agent = WorkerAgent()
     donna = Agent()
-    executor = get_executor()
     print("✓ Agents initialized\n", flush=True)
     
     check_count = 0
@@ -223,7 +199,7 @@ async def main():
             print(f"\n[Check #{check_count}] {get_utc_now()} UTC", flush=True)
             
             # Check and process events (non-blocking), reusing agent instances
-            await check_and_process_events(worker_agent, donna, executor)
+            await check_and_process_events(worker_agent, donna)
             
             # Wait 60 seconds before next check
             await asyncio.sleep(60)

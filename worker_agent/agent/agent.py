@@ -30,30 +30,30 @@ class WorkerAgent:
             print(f"Warning: MCP client not available: {e}")
             self.mcp_manager = None
         
-        # Initialize tools and tool functions
-        self.tools = self._get_tools()
+        # Tools will be initialized lazily on first use
+        self.tools = None
+        self.tools_initialized = False
         self.tool_functions = {
             "set_time_event": set_time_event,
             "delete_time_event": delete_time_event
         }
-        # Add MCP tools to tool_functions dynamically
-        if self.mcp_manager:
-            try:
-                mcp_tools = self.mcp_manager.get_tools()
-                for tool in mcp_tools:
-                    # Create a wrapper function for each MCP tool
-                    self.tool_functions[tool.name] = self._create_mcp_tool_wrapper(tool.name)
-            except Exception as e:
-                print(f"Warning: Could not load MCP tools: {e}")
     
-    def _get_tools(self):
+    async def _ensure_tools_initialized(self):
+        """Ensure tools are initialized (lazy initialization)."""
+        if self.tools_initialized:
+            return
+        
+        self.tools = await self._get_tools()
+        self.tools_initialized = True
+    
+    async def _get_tools(self):
         """Define and return the tools array for the worker agent (local + MCP tools)."""
         tools = []
         
         # Add MCP tools (Brave Search, etc.)
         if self.mcp_manager:
             try:
-                mcp_tools = self.mcp_manager.get_tools()
+                mcp_tools = await self.mcp_manager.get_tools()
                 for tool in mcp_tools:
                     # Convert MCP tool format to LiteLLM format
                     tools.append({
@@ -64,6 +64,8 @@ class WorkerAgent:
                             "parameters": tool.inputSchema  # Already in JSON Schema format
                         }
                     })
+                    # Add async tool wrapper
+                    self.tool_functions[tool.name] = self._create_mcp_tool_wrapper(tool.name)
             except Exception as e:
                 print(f"Warning: Could not load MCP tools: {e}")
         
@@ -151,18 +153,21 @@ class WorkerAgent:
         return tools
     
     def _create_mcp_tool_wrapper(self, tool_name):
-        """Create a wrapper function for an MCP tool."""
-        def mcp_tool_wrapper(**arguments):
+        """Create an async wrapper function for an MCP tool."""
+        async def mcp_tool_wrapper(**arguments):
             if self.mcp_manager:
-                result = self.mcp_manager.call_tool(tool_name, arguments)
+                result = await self.mcp_manager.call_tool(tool_name, arguments)
                 # Result is now a string from fastmcp
                 return result
             else:
                 return "MCP client not available"
         return mcp_tool_wrapper
 
-    def invoke(self, agent_name, user_id, message, medium="", timestamp=None):
+    async def invoke(self, agent_name, user_id, message, medium="", timestamp=None):
         """Invoke the worker agent with a message."""
+        # Ensure tools are initialized
+        await self._ensure_tools_initialized()
+        
         # Store current session info
         self.agent_name = agent_name
         self.user_id = user_id
@@ -178,7 +183,7 @@ class WorkerAgent:
         messages = self._prepare_messages(agent_name, user_id)
         
         # Run ReAct loop and get final response
-        assistant_message = self._react_loop(messages, agent_name, user_id)
+        assistant_message = await self._react_loop(messages, agent_name, user_id)
         
         # Store and return assistant response
         self.directory.add_context(agent_name, user_id, assistant_message)
@@ -231,11 +236,11 @@ class WorkerAgent:
         
         return messages
     
-    def _react_loop(self, messages, agent_name, user_id):
+    async def _react_loop(self, messages, agent_name, user_id):
         """Run ReAct loop until we get a normal response (no tool calls)."""
         while True:
-            # Call LLM with tools
-            response = litellm.completion(
+            # Call LLM with tools using async completion
+            response = await litellm.acompletion(
                 model="deepseek/deepseek-chat",
                 messages=messages,
                 tools=self.tools,
@@ -277,9 +282,15 @@ class WorkerAgent:
                         function_args["agent_name"] = agent_name
                         function_args["user_id"] = user_id
                     
-                    # Execute the tool function
+                    # Execute the tool function (handle both sync and async)
                     if function_name in self.tool_functions:
-                        tool_result = self.tool_functions[function_name](**function_args)
+                        tool_func = self.tool_functions[function_name]
+                        # Check if it's async
+                        import asyncio
+                        if asyncio.iscoroutinefunction(tool_func):
+                            tool_result = await tool_func(**function_args)
+                        else:
+                            tool_result = tool_func(**function_args)
                     else:
                         tool_result = f"Error: Tool '{function_name}' not found"
                     
