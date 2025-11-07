@@ -70,7 +70,7 @@ Time: [HH:MM]
 ## Tool Execution Protocols
 
 ### Available Tools
-1. **brave_web_search**: Real-time information retrieval
+1. **search**: Real-time information retrieval
 2. **set_time_event**: Create/modify reminders with advanced scheduling
 3. **delete_time_event**: Remove existing reminders
 
@@ -311,7 +311,7 @@ Message: CONTEXT: Monitor if Reliance price below 1200
         ACTION: Check price and alert if below threshold
         NEXT STEPS: Search price, compare, notify if needed
 
-[EXECUTE brave_web_search for Reliance price]
+[EXECUTE search for Reliance price]
 [Result: Price is 1250]
 
 Output: Worker_Cron_Success_No_Update_Dont_Reply
@@ -342,7 +342,7 @@ Message: CONTEXT: Weekly check for Arsenal matches
         ACTION: Find matches, create reminders
         NEXT STEPS: Search, create, track
 
-[EXECUTE brave_web_search for Arsenal matches next 7 days]
+[EXECUTE search for Arsenal matches next 7 days]
 [Find: Arsenal vs Chelsea on Jan 15, Arsenal vs Leeds on Jan 18]
 [Check context: Chelsea reminder not set, Leeds already set]
 
