@@ -86,6 +86,10 @@ async def process_event(event, worker_agent, donna):
                     disable_event(reminder_obj['id'])
                     print(f"  ✓ Disabled one-time reminder: {reminder_obj['reminder_name']}")
                 
+                # Update status back to ACTIVE for recurring reminders before returning
+                for event_id in active_recurring_ids:
+                    update_event_status(event_id, 'ACTIVE')
+                
                 return len(active_recurring_ids) > 0, active_recurring_ids
             
             # Step 2: Direct async call to Donna
