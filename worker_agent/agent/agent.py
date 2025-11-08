@@ -9,8 +9,8 @@ from zoneinfo import ZoneInfo
 from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager
 load_dotenv()
 
-# Enable LiteLLM verbose logging
-litellm.set_verbose = True
+# Enable LiteLLM detailed debugging
+litellm._turn_on_debug()
 
 class WorkerAgent:
     def __init__(self, db_path=None):
@@ -242,12 +242,6 @@ class WorkerAgent:
     async def _react_loop(self, messages, agent_name, user_id):
         """Run ReAct loop until we get a normal response (no tool calls)."""
         while True:
-            # Debug: Log messages before sending to LLM
-            print(f"\n[WORKER_AGENT] {agent_name}:{user_id} | Messages: {len(messages)} | Tools: {len(self.tools)}")
-            for i, msg in enumerate(messages):
-                content_len = len(msg.get('content', '')) if isinstance(msg.get('content', ''), str) else 0
-                print(f"  [{i}] {msg.get('role', '?')}: {content_len} chars")
-            
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
                 model="deepseek/deepseek-chat",
