@@ -247,7 +247,7 @@ class Agent:
                         "content": content
                     }
                     tool_responses.append(tool_response)
-                
+                 
                 # Store tool call request and all responses atomically
                 all_tool_messages = [tool_call_request] + tool_responses
                 self.state.add_context(user_id, all_tool_messages)
