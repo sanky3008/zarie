@@ -252,8 +252,8 @@ class State:
                         # Extract tool metadata if present
                         if 'tool_call_id' in response:
                             tool_call_id = response['tool_call_id']
-                        if 'tool_name' in response:
-                            tool_name = response['tool_name']
+                        if 'name' in response:
+                            tool_name = response['name']
                         
                         cursor.execute("""
                             INSERT INTO chats_context 
@@ -290,8 +290,8 @@ class State:
                     # Extract tool metadata if present
                     if 'tool_call_id' in response:
                         tool_call_id = response['tool_call_id']
-                    if 'tool_name' in response:
-                        tool_name = response['tool_name']
+                    if 'name' in response:
+                        tool_name = response['name']
                     
                     self.cursor.execute("""
                         INSERT INTO chats_context 
