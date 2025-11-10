@@ -145,6 +145,13 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
         timestamp_ist = parse_ist_time(next_trigger_timestamp)
         timestamp_utc = ist_to_utc(timestamp_ist)
         next_trigger_timestamp_utc = timestamp_utc.isoformat()
+
+        # If frequency is MINUTELY, limit count to a maximum of 20
+        if freq == 'MINUTELY':
+            if count is None:
+                count = 20
+            else:
+                count = min(count, 20)
         
         # Use lock for SQLite operations
         if db_type == 'sqlite' and sqlite_lock:
