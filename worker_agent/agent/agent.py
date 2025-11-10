@@ -1,3 +1,4 @@
+from pickle import TRUE
 import litellm
 from worker_agent.directory.directory import Directory
 import json
@@ -10,7 +11,8 @@ from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
-litellm._turn_on_debug()
+if os.getenv("LITELLM_DEBUG").lower() == "true":
+    litellm._turn_on_debug()
 
 class WorkerAgent:
     def __init__(self, db_path=None):

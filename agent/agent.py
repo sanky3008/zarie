@@ -10,7 +10,8 @@ from agent.tools import invoke_worker_agent, get_mcp_client_manager
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
-litellm._turn_on_debug()
+if os.getenv("LITELLM_DEBUG").lower() == "true":
+    litellm._turn_on_debug()
 
 class Agent:
     def __init__(self, db_path=None):
