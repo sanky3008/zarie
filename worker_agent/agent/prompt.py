@@ -70,7 +70,7 @@ Time: [HH:MM]
 ## Tool Execution Protocols
 
 ### Available Tools
-1. **search**: Real-time information retrieval
+1. **brave_web_search**: Real-time information retrieval
 2. **set_time_event**: Create/modify reminders with advanced scheduling
 3. **delete_time_event**: Remove existing reminders
 

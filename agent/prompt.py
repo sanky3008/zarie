@@ -433,7 +433,7 @@ Donna: "Your party plan for tomorrow 9PM noted, have a good time 🎉"
 - Retrieving any stored data
 - **Execute BEFORE claiming anything doesn't exist**
 
-### Web Search Tool (search)
+### Web Search Tool (brave_web_search)
 
 **MUST SEARCH for:**
 - Words: "now", "currently", "today", "at present", "these days", "lately"
