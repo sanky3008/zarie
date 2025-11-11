@@ -4,7 +4,7 @@ import asyncio
 
 async def main():
     """Terminal chat application using the Agent."""
-    user_id = "terminal_user_31"
+    user_id = "terminal_user_69"
     medium = "TERMINAL2"
     
     agent = Agent()

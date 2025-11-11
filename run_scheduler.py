@@ -136,9 +136,26 @@ async def process_event(event, worker_agent, donna):
             update_event_status(reminder_obj['id'], 'ACTIVE')
     except Exception as e:
         print(f"  ✗ Error: {e}")
-        # Unlock all events to allow them to be retried on the next cycle
-        for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
-            update_event_status(reminder_obj['id'], 'ACTIVE')
+        # If error is "Chat not found", process reminders as usual
+        if "Chat not found" in str(e):
+            active_recurring_ids = []
+            for reminder_obj in reminders.get('recurring', []):
+                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                if is_active:
+                    active_recurring_ids.append(reminder_obj['id'])
+                else:
+                    pass
+            
+            for reminder_obj in reminders.get('non_recurring', []):
+                disable_event(reminder_obj['id'])
+            
+            # Update status back to ACTIVE for recurring reminders
+            for event_id in active_recurring_ids:
+                update_event_status(event_id, 'ACTIVE')
+        else:
+            # Unlock all events to allow them to be retried on the next cycle
+            for reminder_obj in reminders.get('recurring', []) + reminders.get('non_recurring', []):
+                update_event_status(reminder_obj['id'], 'ACTIVE')
 
 async def process_user_events(events, worker_agent, donna):
     """Process multiple events for a single user sequentially to avoid race conditions"""
