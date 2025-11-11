@@ -20,7 +20,7 @@ with open(csv_file, 'r') as f:
                 
                 agent = Agent()
                 print("Invoking agent...")
-                response = await agent.invoke(user_id, message, "EVAL")
+                response = await agent.invoke(user_id, message, "End User via Telegram")
                 print(f"Response: {response['content']}")
                 print("-" * 50)
     
