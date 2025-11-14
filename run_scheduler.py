@@ -93,7 +93,7 @@ async def process_event(event, worker_agent, donna):
                 return len(active_recurring_ids) > 0, active_recurring_ids
             
             # Step 2: Direct async call to Donna
-            donna_message = f"{worker_response['content']}"
+            donna_message = f"{worker_response['content'].replace('**', '')}"
             donna_response = await donna.invoke(
                 user_id,
                 donna_message,
