@@ -92,18 +92,23 @@ async def process_event(event, worker_agent, donna):
                 
                 return len(active_recurring_ids) > 0, active_recurring_ids
             
-            # Step 2: Direct async call to Donna
+            # Step 2: Stream response from Donna and send chunks to Telegram
             donna_message = f"{worker_response['content'].replace('**', '')}"
-            donna_response = await donna.invoke(
+            accumulated_response = ""
+            
+            print("Streaming Donna response:")
+            async for chunk in donna.invoke(
                 user_id,
                 donna_message,
                 f"{agent_name}"
-            )
-
-            print(f"Donna response: {donna_response}")
+            ):
+                accumulated_response += chunk
+                # Send each chunk to Telegram immediately
+                await send_telegram_message(user_id, chunk)
+                print(f"  → Sent chunk to user: {chunk[:30]}...")
             
-            # Step 3: Send Donna's response to user via Telegram (async, non-blocking)
-            await send_telegram_message(user_id, donna_response['content'])
+            donna_response = {"content": accumulated_response}
+            print(f"Donna response complete: {len(accumulated_response)} characters")
             
             # Step 4: Handle each reminder based on its status
             active_recurring_ids = []

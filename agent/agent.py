@@ -109,7 +109,7 @@ class Agent:
         return mcp_tool_wrapper
 
     async def invoke(self, user_id, message, medium, timestamp=None):
-        """Invoke the agent with a user message and medium."""
+        """Invoke the agent with a user message and medium - streaming generator."""
         # Ensure tools are initialized
         await self._ensure_tools_initialized()
         
@@ -123,12 +123,11 @@ class Agent:
         # Prepare messages for LLM
         messages = self._prepare_messages(user_id)
         
-        # Run ReAct loop and get final response
-        assistant_message = await self._react_loop(messages, user_id)
-        
-        # Store and return assistant response
-        self.state.add_context(user_id, assistant_message)
-        return assistant_message
+        # Stream responses from ReAct loop
+        import asyncio
+        async for chunk in self._react_loop_streaming(messages, user_id):
+            yield chunk
+            await asyncio.sleep(0.5)  # 500ms delay between chunks for natural pacing
     
     def _create_user_message(self, message, medium, timestamp):
         """Create a formatted user message with date, time, and medium."""
@@ -177,8 +176,8 @@ class Agent:
         
         return messages
     
-    async def _react_loop(self, messages, user_id):
-        """Run ReAct loop until we get a normal response (no tool calls)."""
+    async def _react_loop_streaming(self, messages, user_id):
+        """Run ReAct loop, yielding text chunks on \\n\\n boundaries and executing tool calls."""
         while True:
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
@@ -258,10 +257,29 @@ class Agent:
                 messages.extend(tool_responses)
                 continue
             else:
-                # No tool calls, return the final response (LiteLLM format)
-                return {
+                # No tool calls - stream text response on \n\n boundaries
+                content = assistant_msg.content.replace('**', '')
+                parts = content.split("\n\n")
+                
+                # Track accumulated response for state storage
+                accumulated_response = ""
+                
+                # Yield all parts except the last
+                for part in parts[:-1]:
+                    chunk_to_yield = part + "\n\n"
+                    accumulated_response += chunk_to_yield
+                    yield chunk_to_yield
+                
+                # Yield the last part if not empty
+                if parts[-1].strip():
+                    accumulated_response += parts[-1]
+                    yield parts[-1]
+                
+                # Store complete assistant response in state
+                self.state.add_context(user_id, {
                     "role": "assistant",
-                    "content": assistant_msg.content.replace('**', '')
-                }
+                    "content": accumulated_response
+                })
+                return
     
 

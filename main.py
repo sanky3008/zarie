@@ -59,22 +59,21 @@ class TelegramBot:
             IST = timezone(timedelta(hours=5, minutes=30))
             message_timestamp_ist = message_timestamp_utc.astimezone(IST)
             
-            # Direct async call to agent - no executor needed!
-            response = await self.agent.invoke(
+            # Stream response chunks from agent
+            has_response = False
+            async for chunk in self.agent.invoke(
                 user_id, 
                 message_text, 
                 "End-User via Telegram",
                 message_timestamp_ist
-            )
+            ):
+                # Send each chunk as a separate message
+                if chunk.strip():
+                    await update.message.reply_text(chunk)
+                    has_response = True
             
-            # Send the response back to the user
-            if response and 'content' in response:
-                content = response.get('content', '').strip()
-                # If content is empty, agent chose not to reply - don't send any message
-                if content:
-                    await update.message.reply_text(response['content'])
-                # If empty, silently skip (agent doesn't want to reply)
-            else:
+            # If no response was generated, notify user
+            if not has_response:
                 await update.message.reply_text("Sorry, I couldn't process that. Try again?")
         
         except Exception as e:
