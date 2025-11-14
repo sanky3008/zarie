@@ -261,7 +261,7 @@ class Agent:
                 # No tool calls, return the final response (LiteLLM format)
                 return {
                     "role": "assistant",
-                    "content": assistant_msg.content
+                    "content": assistant_msg.content.replace('**', '')
                 }
     
 

@@ -123,4 +123,5 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
         medium="MESSAGE_FROM_DONNA"
     )
     
-    return response.get('content', 'No response from worker agent')
+    content = response.get('content', 'No response from worker agent')
+    return content.replace('**', '') if isinstance(content, str) else content
