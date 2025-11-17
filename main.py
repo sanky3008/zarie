@@ -2,6 +2,7 @@ import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from agent.agent import Agent
+from user_manager import create_or_update_user
 from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
 
@@ -43,6 +44,14 @@ class TelegramBot:
         # Get user information
         user = update.effective_user
         user_id = str(user.id)  # Using Telegram user ID as the identifier
+        
+        # Save or update user in database
+        create_or_update_user(
+            telegram_id=user_id,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            username=user.username
+        )
         
         # Note: To get phone number, the user must share their contact explicitly.
         # You can add a feature to request contact if needed.
