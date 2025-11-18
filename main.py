@@ -59,6 +59,10 @@ class TelegramBot:
         
         message_text = update.message.text
         
+        if len(message_text) > 10000:
+            await update.message.reply_text("Message too long. Please keep it under 4000 characters.")
+            return
+        
         # Send typing action to show the bot is working
         await update.message.chat.send_action(action="typing")
         
