@@ -257,28 +257,17 @@ class Agent:
                 messages.extend(tool_responses)
                 continue
             else:
-                # No tool calls - stream text response on \n\n boundaries
+                # No tool calls - stream text response
                 content = assistant_msg.content.replace('**', '')
-                parts = content.split("\n\n")
                 
-                # Track accumulated response for state storage
-                accumulated_response = ""
-                
-                # Yield all parts except the last
-                for part in parts[:-1]:
-                    chunk_to_yield = part + "\n\n"
-                    accumulated_response += chunk_to_yield
-                    yield chunk_to_yield
-                
-                # Yield the last part if not empty
-                if parts[-1].strip():
-                    accumulated_response += parts[-1]
-                    yield parts[-1]
+                # Yield the full content
+                if content.strip():
+                    yield content
                 
                 # Store complete assistant response in state
                 self.state.add_context(user_id, {
                     "role": "assistant",
-                    "content": accumulated_response
+                    "content": content
                 })
                 return
     
