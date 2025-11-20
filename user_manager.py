@@ -61,16 +61,16 @@ def create_or_update_user(telegram_id: str, first_name: str, last_name: str = No
         if db_type == 'postgres':
             # Use INSERT ... ON CONFLICT for PostgreSQL (upsert)
             cursor.execute("""
-                INSERT INTO users (telegram_id, name, telegram_username)
-                VALUES (%s, %s, %s)
+                INSERT INTO users (telegram_id, name, telegram_username, created_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (telegram_id) DO UPDATE
                 SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username
             """, (telegram_id, name, username))
         else:
             # Use INSERT OR REPLACE for SQLite
             cursor.execute("""
-                INSERT OR REPLACE INTO users (telegram_id, name, telegram_username)
-                VALUES (?, ?, ?)
+                INSERT OR REPLACE INTO users (telegram_id, name, telegram_username, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             """, (telegram_id, name, username))
         
         conn.commit()
@@ -89,7 +89,7 @@ def get_user(telegram_id: str):
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT id, telegram_id, name, telegram_username FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username FROM users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at FROM users WHERE telegram_id = ?", (telegram_id,))
         result = cursor.fetchone()
         
         if result:
@@ -98,14 +98,16 @@ def get_user(telegram_id: str):
                     'id': result[0],
                     'telegram_id': result[1],
                     'name': result[2],
-                    'telegram_username': result[3]
+                    'telegram_username': result[3],
+                    'created_at': result[4]
                 }
             else:
                 return {
                     'id': result[0],
                     'telegram_id': result[1],
                     'name': result[2],
-                    'telegram_username': result[3]
+                    'telegram_username': result[3],
+                    'created_at': result[4]
                 }
         return None
     except Exception as e:
