@@ -30,7 +30,7 @@ class TelegramBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle the /start command."""
         await update.message.reply_text(
-            "Hi! I'm Donna Paulsen, your AI assistant. Send me a message and I'll help you out!"
+            "Hi! I'm Zarie, your AI assistant. Send me a message and I'll help you out!"
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
