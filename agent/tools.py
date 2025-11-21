@@ -120,7 +120,7 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
         agent_name=agent_name,
         user_id=user_id,
         message=message,
-        medium="MESSAGE_FROM_DONNA"
+        medium="MESSAGE_FROM_Zarie"
     )
     
     content = response.get('content', 'No response from worker agent')
