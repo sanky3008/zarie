@@ -96,7 +96,7 @@ def get_user(telegram_id: str):
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at FROM users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie FROM users WHERE telegram_id = ?", (telegram_id,))
         result = cursor.fetchone()
         
         if result:
@@ -106,7 +106,8 @@ def get_user(telegram_id: str):
                     'telegram_id': result[1],
                     'name': result[2],
                     'telegram_username': result[3],
-                    'created_at': result[4]
+                    'created_at': result[4],
+                    'has_zarie': result[5]
                 }
             else:
                 return {
@@ -114,7 +115,8 @@ def get_user(telegram_id: str):
                     'telegram_id': result[1],
                     'name': result[2],
                     'telegram_username': result[3],
-                    'created_at': result[4]
+                    'created_at': result[4],
+                    'has_zarie': bool(result[5]) # SQLite stores booleans as 0/1
                 }
         return None
     except Exception as e:

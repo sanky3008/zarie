@@ -2,7 +2,7 @@ import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from agent.agent import Agent
-from user_manager import create_or_update_user
+from user_manager import create_or_update_user, get_user
 from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
 
@@ -45,13 +45,25 @@ class TelegramBot:
         user = update.effective_user
         user_id = str(user.id)  # Using Telegram user ID as the identifier
         
-        # Save or update user in database
-        create_or_update_user(
-            telegram_id=user_id,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            username=user.username
-        )
+        # Check if user exists and has necessary info
+        existing_user = get_user(user_id)
+        
+        should_update = True
+        if existing_user:
+            # If user exists, has name, username, and has_zarie is True, we don't need to update
+            if (existing_user.get('name') and 
+                existing_user.get('telegram_username') and 
+                existing_user.get('has_zarie')):
+                should_update = False
+        
+        if should_update:
+            # Save or update user in database
+            create_or_update_user(
+                telegram_id=user_id,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                username=user.username
+            )
         
         # Note: To get phone number, the user must share their contact explicitly.
         # You can add a feature to request contact if needed.
