@@ -94,12 +94,14 @@ def get_due_events():
         
         if db_type == 'postgres':
             cursor.execute("""
-                SELECT id, agent_name, user_id, reminder_name, 
-                       next_trigger_timestamp, is_recurring, 
-                       recurrence_rule, message
-                FROM time_events
-                WHERE status = 'ACTIVE'
-                AND next_trigger_timestamp <= %s
+                SELECT t.id, t.agent_name, t.user_id, t.reminder_name, 
+                       t.next_trigger_timestamp, t.is_recurring, 
+                       t.recurrence_rule, t.message
+                FROM time_events t
+                JOIN users u ON t.user_id = u.telegram_id
+                WHERE t.status = 'ACTIVE'
+                AND t.next_trigger_timestamp <= %s
+                AND u.has_zarie = TRUE
             """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
             raw_events = [
@@ -117,12 +119,14 @@ def get_due_events():
             ]
         else:
             cursor.execute("""
-                SELECT id, agent_name, user_id, reminder_name, 
-                       next_trigger_timestamp, is_recurring, 
-                       recurrence_rule, message
-                FROM time_events
-                WHERE status = 'ACTIVE'
-                AND next_trigger_timestamp <= ?
+                SELECT t.id, t.agent_name, t.user_id, t.reminder_name, 
+                       t.next_trigger_timestamp, t.is_recurring, 
+                       t.recurrence_rule, t.message
+                FROM time_events t
+                JOIN users u ON t.user_id = u.telegram_id
+                WHERE t.status = 'ACTIVE'
+                AND t.next_trigger_timestamp <= ?
+                AND u.has_zarie = 1
             """, (now_utc.isoformat(),))
             rows = cursor.fetchall()
             raw_events = [

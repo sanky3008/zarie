@@ -61,17 +61,24 @@ def create_or_update_user(telegram_id: str, first_name: str, last_name: str = No
         if db_type == 'postgres':
             # Use INSERT ... ON CONFLICT for PostgreSQL (upsert)
             cursor.execute("""
-                INSERT INTO users (telegram_id, name, telegram_username, created_at)
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE)
                 ON CONFLICT (telegram_id) DO UPDATE
-                SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username
+                SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE
             """, (telegram_id, name, username))
         else:
-            # Use INSERT OR REPLACE for SQLite
-            cursor.execute("""
-                INSERT OR REPLACE INTO users (telegram_id, name, telegram_username, created_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """, (telegram_id, name, username))
+            # For SQLite, check if user exists first to preserve created_at and update has_zarie
+            if user_exists(telegram_id):
+                cursor.execute("""
+                    UPDATE users
+                    SET name = ?, telegram_username = ?, has_zarie = TRUE
+                    WHERE telegram_id = ?
+                """, (name, username, telegram_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, TRUE)
+                """, (telegram_id, name, username))
         
         conn.commit()
         return True
