@@ -3,6 +3,7 @@ from worker_agent.directory.directory import Directory
 import os
 import asyncio
 from fastmcp import Client
+from telegram import Bot
 
 try:
     from dotenv import load_dotenv
@@ -125,3 +126,30 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
     
     content = response.get('content', 'No response from worker agent')
     return content.replace('**', '') if isinstance(content, str) else content
+
+
+async def send_message_to_user(user_id: str, message: str):
+    """
+    Send a message to the user immediately.
+    
+    Use this tool to provide updates to the user when a task is taking time or to keep them informed
+    without waiting for the final response. This does NOT break the agent's thought process loop.
+    
+    Args:
+        user_id (str): The user's Telegram ID (injected automatically).
+        message (str): The message content to send to the user.
+        
+    Returns:
+        str: Status of the message sending.
+    """
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        return "Error: TELEGRAM_BOT_TOKEN not found"
+        
+    try:
+        bot = Bot(token=token)
+        await bot.send_message(chat_id=user_id, text=message)
+        await bot.send_chat_action(chat_id=user_id, action="typing")
+        return "Message sent successfully"
+    except Exception as e:
+        return f"Error sending message: {str(e)}"

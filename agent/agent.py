@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from agent.tools import invoke_worker_agent, get_mcp_client_manager
+from agent.tools import invoke_worker_agent, get_mcp_client_manager, send_message_to_user
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
@@ -34,7 +34,8 @@ class Agent:
         self.tools = None
         self.tools_initialized = False
         self.tool_functions = {
-            "invoke_worker_agent": invoke_worker_agent
+            "invoke_worker_agent": invoke_worker_agent,
+            "send_message_to_user": send_message_to_user
         }
     
     async def _ensure_tools_initialized(self):
@@ -91,6 +92,24 @@ class Agent:
                         }
                     },
                     "required": ["agent_name", "purpose", "message"]
+                }
+            }
+        })
+        
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "send_message_to_user",
+                "description": "Send a message to the user immediately. Use this to provide updates when a task is taking time or to keep the user informed without waiting for the final response. This does NOT break the agent's thought process loop. Always use before searching or calling any tools that take time.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "The message content to send to the user."
+                        }
+                    },
+                    "required": ["message"]
                 }
             }
         })
@@ -219,6 +238,8 @@ class Agent:
                     
                     # Inject user_id for tools that need it
                     if function_name == "invoke_worker_agent":
+                        function_args["user_id"] = user_id
+                    elif function_name == "send_message_to_user":
                         function_args["user_id"] = user_id
                     
                     # Execute the tool function (handle both sync and async)
