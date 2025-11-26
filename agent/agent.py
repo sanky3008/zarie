@@ -185,15 +185,103 @@ class Agent:
         
         # Add system prompt with dynamic worker agents section
         system_prompt = get_system_prompt(user_id)
+        
+        # Format conversation history
+        formatted_history = self._format_conversation_history(messages)
+        
+        # Add conversation history to system prompt 
+        if formatted_history:
+            system_prompt += f"\n\n<conversation_history>\n{formatted_history}\n</conversation_history>"
 
         # print(system_prompt)
         if system_prompt:
-            messages.insert(0, {
+            # Return a single system message with the complete history
+            return [{
                 "role": "system",
                 "content": system_prompt
-            })
+            }]
         
-        return messages
+        return []
+
+    def _format_conversation_history(self, messages):
+        """Format conversation history into a structured string."""
+        formatted_lines = []
+        ist_timezone = ZoneInfo("Asia/Kolkata")
+        
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content")
+            created_at = msg.get("created_at")
+            
+            # Parse timestamp
+            timestamp_str = ""
+            if created_at:
+                if isinstance(created_at, str):
+                    try:
+                        dt = datetime.fromisoformat(created_at)
+                    except ValueError:
+                        dt = datetime.now(ZoneInfo("UTC")) # Fallback
+                else:
+                    dt = created_at
+                
+                # Convert to IST
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                ist_dt = dt.astimezone(ist_timezone)
+                timestamp_str = ist_dt.strftime("%b %d, %I:%M %p")
+            
+            if role == "user":
+                # Parse user message content
+                # Format: Date: ...\nTime: ...\nFROM: <MEDIUM>\nMessage: <CONTENT>
+                medium = "User"
+                message_text = content
+                
+                if content and content.startswith("Date:"):
+                    lines = content.split('\n')
+                    parsed_date = None
+                    parsed_time = None
+                    
+                    for line in lines:
+                        if line.startswith("FROM:"):
+                            medium = line.replace("FROM:", "").strip()
+                        elif line.startswith("Medium:"): # Handle variation
+                            medium = line.replace("Medium:", "").strip()
+                        elif line.startswith("Message:"):
+                            # Everything after "Message:" is the content
+                            # We need to handle multi-line messages correctly
+                            # Find the index of "Message:" in the original content
+                            msg_idx = content.find("Message:")
+                            if msg_idx != -1:
+                                message_text = content[msg_idx + 8:].strip()
+                            break
+                        elif line.startswith("Date:"):
+                            parsed_date = line.replace("Date:", "").strip()
+                        elif line.startswith("Time:"):
+                            parsed_time = line.replace("Time:", "").strip()
+                    
+                    # Handle 2025-11-05 edge case
+                    if created_at and (str(created_at).startswith("2025-11-05") or str(created_at).startswith("2025-11-06")):
+                         if parsed_date and parsed_time:
+                             timestamp_str = f"{parsed_date}, {parsed_time}"
+
+                formatted_lines.append(f"[{medium} ({timestamp_str})]: {message_text}")
+            
+            elif role == "assistant":
+                if msg.get("tool_calls"):
+                    for tool_call in msg["tool_calls"]:
+                        tool_name = tool_call["function"]["name"]
+                        tool_args = tool_call["function"]["arguments"]
+                        formatted_lines.append(f"[Zarie Action ({timestamp_str})]: Used tool '{tool_name}' with args {tool_args}")
+                elif content:
+                    formatted_lines.append(f"[Zarie ({timestamp_str})]: {content}")
+            
+            elif role == "tool":
+                tool_name = msg.get("tool_name")
+                if not tool_name:
+                    tool_name = "Unknown Tool"
+                formatted_lines.append(f"[System Info]: {tool_name} returned: {content}")
+        
+        return "\n".join(formatted_lines)
     
     async def _react_loop_streaming(self, messages, user_id):
         """Run ReAct loop, yielding text chunks on \\n\\n boundaries and executing tool calls."""

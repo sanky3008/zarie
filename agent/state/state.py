@@ -162,7 +162,7 @@ class State:
             try:
                 with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
                     cursor.execute("""
-                        SELECT role, content, tool_calls, tool_call_id, tool_name 
+                        SELECT role, content, tool_calls, tool_call_id, tool_name, created_at
                         FROM chats_context 
                         WHERE user_id = %s 
                         ORDER BY message_sequence ASC
@@ -182,7 +182,8 @@ class State:
                         
                         msg = {
                             "role": row['role'],
-                            "content": content
+                            "content": content,
+                            "created_at": row['created_at'].isoformat() if row['created_at'] else None
                         }
                         # Add tool_calls if present
                         if row['tool_calls']:
@@ -200,7 +201,7 @@ class State:
         else:
             with self.lock:
                 self.cursor.execute("""
-                    SELECT role, content, tool_calls, tool_call_id, tool_name 
+                    SELECT role, content, tool_calls, tool_call_id, tool_name, created_at
                     FROM chats_context 
                     WHERE user_id = ? 
                     ORDER BY message_sequence ASC
@@ -215,12 +216,13 @@ class State:
                     
                     # Truncate content for Brave Search tools
                     if tool_name in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
-                        if content and len(content) > 2000:
-                            content = content[:2000] + "...[TRUNCATED]"
+                        if content and len(content) > 500:
+                            content = content[:500] + "...[TRUNCATED]"
                     
                     msg = {
                         "role": row[0],
-                        "content": content
+                        "content": content,
+                        "created_at": row[5]
                     }
                     # Add tool_calls if present
                     if row[2]:
