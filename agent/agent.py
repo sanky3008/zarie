@@ -183,25 +183,41 @@ class Agent:
         context_blob = self.state.get_context(user_id)
         messages = json.loads(context_blob) if context_blob else []
         
+        # Find the index of the 3rd last user message
+        user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
+        
+        split_index = len(messages) # Default to no JSON if not enough user messages
+        if len(user_indices) >= 3:
+            # We want to split AFTER the 3rd last user message
+            # user_indices[-1] is last, [-2] is 2nd last, [-3] is 3rd last
+            split_index = user_indices[-3] + 1
+            
+        old_messages = messages[:split_index]
+        recent_messages = messages[split_index:]
+        
         # Add system prompt with dynamic worker agents section
         system_prompt = get_system_prompt(user_id)
         
-        # Format conversation history
-        formatted_history = self._format_conversation_history(messages)
+        # Format conversation history for old messages
+        formatted_history = self._format_conversation_history(old_messages)
         
         # Add conversation history to system prompt 
         if formatted_history:
             system_prompt += f"\n\n<conversation_history>\n{formatted_history}\n</conversation_history>"
 
         # print(system_prompt)
+        final_messages = []
         if system_prompt:
             # Return a single system message with the complete history
-            return [{
+            final_messages.append({
                 "role": "system",
                 "content": system_prompt
-            }]
+            })
         
-        return []
+        # Append recent messages as objects
+        final_messages.extend(recent_messages)
+        
+        return final_messages
 
     def _format_conversation_history(self, messages):
         """Format conversation history into a structured string."""
