@@ -58,6 +58,7 @@ logs/
 .coverage
 htmlcov/
 
+
 # Distribution / Packaging
 *.tar.gz
 *.zip

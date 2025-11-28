@@ -161,10 +161,11 @@ class State:
             conn = self.pool.getconn()
             try:
                 with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
+                    # Also fetch message_sequence to help with summarization cutoff
                     cursor.execute("""
-                        SELECT role, content, tool_calls, tool_call_id, tool_name, created_at
+                        SELECT role, content, tool_calls, tool_call_id, tool_name, created_at, message_sequence
                         FROM chats_context 
-                        WHERE user_id = %s 
+                        WHERE user_id = %s AND (is_summarised IS FALSE OR is_summarised IS NULL)
                         ORDER BY message_sequence ASC
                     """, (user_id,))
                     rows = cursor.fetchall()
@@ -183,7 +184,8 @@ class State:
                         msg = {
                             "role": row['role'],
                             "content": content,
-                            "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                            "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                            "message_sequence": row['message_sequence']
                         }
                         # Add tool_calls if present
                         if row['tool_calls']:
@@ -200,10 +202,11 @@ class State:
                 self.pool.putconn(conn)
         else:
             with self.lock:
+                # Also fetch message_sequence
                 self.cursor.execute("""
-                    SELECT role, content, tool_calls, tool_call_id, tool_name, created_at
+                    SELECT role, content, tool_calls, tool_call_id, tool_name, created_at, message_sequence
                     FROM chats_context 
-                    WHERE user_id = ? 
+                    WHERE user_id = ? AND (is_summarised = 0 OR is_summarised IS NULL)
                     ORDER BY message_sequence ASC
                 """, (user_id,))
                 rows = self.cursor.fetchall()
@@ -222,7 +225,8 @@ class State:
                     msg = {
                         "role": row[0],
                         "content": content,
-                        "created_at": row[5]
+                        "created_at": row[5],
+                        "message_sequence": row[6]
                     }
                     # Add tool_calls if present
                     if row[2]:
@@ -317,5 +321,60 @@ class State:
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name))
                 
+                self.conn.commit()
+
+    def get_running_summary(self, user_id):
+        """Get the running summary for a user."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT running_summary FROM users WHERE telegram_id = %s", (user_id,))
+                    row = cursor.fetchone()
+                    return row[0] if row else None
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("SELECT running_summary FROM users WHERE telegram_id = ?", (user_id,))
+                row = self.cursor.fetchone()
+                return row[0] if row else None
+
+    def update_running_summary(self, user_id, summary):
+        """Update the running summary for a user."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("UPDATE users SET running_summary = %s WHERE telegram_id = %s", (summary, user_id))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("UPDATE users SET running_summary = ? WHERE telegram_id = ?", (summary, user_id))
+                self.conn.commit()
+
+    def mark_messages_up_to_sequence(self, user_id, max_sequence):
+        """Mark all messages up to (and including) max_sequence as summarised."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE chats_context 
+                        SET is_summarised = TRUE 
+                        WHERE user_id = %s AND message_sequence <= %s
+                    """, (user_id, max_sequence))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("""
+                    UPDATE chats_context 
+                    SET is_summarised = 1 
+                    WHERE user_id = ? AND message_sequence <= ?
+                """, (user_id, max_sequence))
                 self.conn.commit()
 

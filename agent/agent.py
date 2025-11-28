@@ -140,7 +140,7 @@ class Agent:
         self.state.add_context(user_id, user_message)
         
         # Prepare messages for LLM
-        messages = self._prepare_messages(user_id)
+        messages = await self._prepare_messages(user_id)
         
         # Stream responses from ReAct loop
         import asyncio
@@ -177,7 +177,7 @@ class Agent:
             "content": f"Date: {date_str}\nTime: {time_str}\nFROM: {medium}\nMessage: {message}"
         }
     
-    def _prepare_messages(self, user_id):
+    async def _prepare_messages(self, user_id):
         """Prepare messages array for LLM from context."""
         # Get context from state - it's already in LiteLLM format!
         context_blob = self.state.get_context(user_id)
@@ -187,23 +187,46 @@ class Agent:
         user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
         
         split_index = len(messages) # Default to no JSON if not enough user messages
-        if len(user_indices) >= 3:
-            # We want to split AFTER the 3rd last user message
-            # user_indices[-1] is last, [-2] is 2nd last, [-3] is 3rd last
-            split_index = user_indices[-3] + 1
-            
+        
+        # We want to split AFTER the 6th last user message
+        # user_indices[-1] is last, [-2] is 2nd last, [-3] is 3rd last
+        if len(user_indices) >= 6:
+            split_index = user_indices[-6] + 1
+        else:
+            split_index = 0
+        
         old_messages = messages[:split_index]
         recent_messages = messages[split_index:]
+        
+        # Check for summarization trigger
+        running_summary = self.state.get_running_summary(user_id)
+        
+        if len(old_messages) > 10:
+            from agent.summarisation import summarise_context
+            # Perform summarization
+            # Since _prepare_messages is called from invoke which is async, we should make this async too.
+            # But invoke calls this as a sync method currently.
+            # We need to change _prepare_messages to be async or run this synchronously.
+            # Given the tool definition, I'll make _prepare_messages async and await it in invoke.
+            new_summary = await summarise_context(self.state, user_id, old_messages)
+            if new_summary:
+                running_summary = new_summary
+                # Clear old_messages as they are now summarised
+                old_messages = []
         
         # Add system prompt with dynamic worker agents section
         system_prompt = get_system_prompt(user_id)
         
-        # Format conversation history for old messages
+        # Inject running summary if exists
+        if running_summary:
+            system_prompt += f"\n\n## User Context Summary (PERSONALIZATION REFERENCE)\n<conversation_summary>\n{running_summary}\n</conversation_summary>"
+        
+        # Format conversation history for REMAINING old messages (if any)
         formatted_history = self._format_conversation_history(old_messages)
         
         # Add conversation history to system prompt 
         if formatted_history:
-            system_prompt += f"\n\n<conversation_history>\n{formatted_history}\n</conversation_history>"
+            system_prompt += f"\n\n## Conversation History (READ ONLY)\n<conversation_history>\n{formatted_history}\n</conversation_history>"
 
         # print(system_prompt)
         final_messages = []
