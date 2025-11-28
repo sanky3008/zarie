@@ -201,7 +201,7 @@ class Agent:
         # Check for summarization trigger
         running_summary = self.state.get_running_summary(user_id)
         
-        if len(old_messages) > 10:
+        if len(old_messages) > 500:
             from agent.summarisation import summarise_context
             # Perform summarization
             # Since _prepare_messages is called from invoke which is async, we should make this async too.

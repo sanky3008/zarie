@@ -521,7 +521,7 @@ async def summarise_context(state: State, user_id: str, messages: list):
     # 3. Call Gemini
     try:
         response = await litellm.acompletion(
-            model="deepseek/deepseek-reasoner",
+            model="gemini/gemini-3-pro-preview",
             messages=[{"role": "user", "content": prompt}]
         )
         
