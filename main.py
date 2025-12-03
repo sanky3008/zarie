@@ -1,4 +1,5 @@
 import os
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from agent.agent import Agent
@@ -26,6 +27,10 @@ class TelegramBot:
         
         if not self.token:
             raise ValueError("TELEGRAM_BOT_TOKEN not found in environment variables")
+        
+        # Dictionary to store buffered messages and timer tasks for each user
+        # Format: { user_id: { 'messages': [str], 'task': asyncio.Task } }
+        self.user_message_buffers = {}
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle the /start command."""
@@ -39,8 +44,58 @@ class TelegramBot:
             "Just send me any message and I'll respond. That's all you need to know, boss."
         )
     
+    async def process_buffered_messages(self, user_id: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Process buffered messages for a user after the debounce delay."""
+        if user_id not in self.user_message_buffers:
+            return
+
+        # Retrieve and clear the buffer
+        buffer_data = self.user_message_buffers.pop(user_id)
+        messages = buffer_data['messages']
+        
+        if not messages:
+            return
+
+        # Combine messages
+        combined_message_text = "\n".join(messages)
+        
+        # Send typing action to show the bot is working
+        await update.message.chat.send_action(action="typing")
+        
+        try:
+            # Get the message timestamp and convert from UTC to IST
+            # We use the timestamp of the last message (current update)
+            message_timestamp_utc = update.message.date
+            IST = timezone(timedelta(hours=5, minutes=30))
+            message_timestamp_ist = message_timestamp_utc.astimezone(IST)
+            
+            # Stream response chunks from agent
+            has_response = False
+            async for chunk in self.agent.invoke(
+                user_id, 
+                combined_message_text, 
+                "End-User via Telegram",
+                message_timestamp_ist
+            ):
+                # Send each chunk as a separate message
+                if chunk.strip():
+                    await update.message.reply_text(chunk)
+                    has_response = True
+            
+            # If no response was generated, notify user
+            if not has_response:
+                await update.message.reply_text("Sorry, I couldn't process that. Try again?")
+        
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            import traceback
+            traceback.print_exc()
+            await update.message.reply_text(
+                "Oops, something went wrong on my end. Give me a moment and try again."
+            )
+
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle incoming messages."""
+        """Handle incoming messages with debouncing."""
         # Get user information
         user = update.effective_user
         user_id = str(user.id)  # Using Telegram user ID as the identifier
@@ -65,49 +120,32 @@ class TelegramBot:
                 username=user.username
             )
         
-        # Note: To get phone number, the user must share their contact explicitly.
-        # You can add a feature to request contact if needed.
-        # For now, we'll use Telegram user ID as the unique identifier.
-        
         message_text = update.message.text
         
-        if len(message_text) > 10000:
+        if len(message_text) > 100000:
             await update.message.reply_text("Message too long. Please keep it under 4000 characters.")
             return
+
+        # Debouncing logic
+        if user_id in self.user_message_buffers:
+            # Cancel existing task
+            self.user_message_buffers[user_id]['task'].cancel()
+            # Append message to existing buffer
+            self.user_message_buffers[user_id]['messages'].append(message_text)
+        else:
+            # Initialize new buffer
+            self.user_message_buffers[user_id] = {
+                'messages': [message_text],
+                'task': None
+            }
         
-        # Send typing action to show the bot is working
-        await update.message.chat.send_action(action="typing")
-        
-        try:
-            # Get the message timestamp and convert from UTC to IST
-            message_timestamp_utc = update.message.date
-            IST = timezone(timedelta(hours=5, minutes=30))
-            message_timestamp_ist = message_timestamp_utc.astimezone(IST)
-            
-            # Stream response chunks from agent
-            has_response = False
-            async for chunk in self.agent.invoke(
-                user_id, 
-                message_text, 
-                "End-User via Telegram",
-                message_timestamp_ist
-            ):
-                # Send each chunk as a separate message
-                if chunk.strip():
-                    await update.message.reply_text(chunk)
-                    has_response = True
-            
-            # If no response was generated, notify user
-            if not has_response:
-                await update.message.reply_text("Sorry, I couldn't process that. Try again?")
-        
-        except Exception as e:
-            print(f"Error processing message: {e}")
-            import traceback
-            traceback.print_exc()
-            await update.message.reply_text(
-                "Oops, something went wrong on my end. Give me a moment and try again."
-            )
+        # Define the delayed processing task
+        async def delayed_processing():
+            await asyncio.sleep(5)  # Wait for 5 seconds
+            await self.process_buffered_messages(user_id, update, context)
+
+        # Schedule the new task
+        self.user_message_buffers[user_id]['task'] = asyncio.create_task(delayed_processing())
     
     async def handle_contact(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle when a user shares their contact (optional feature)."""
