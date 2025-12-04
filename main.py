@@ -12,6 +12,9 @@ load_dotenv()
 # Shared agent instance for all handlers
 _agent = None
 
+# Blocked user IDs
+BLOCKED_USER_IDS = set(id.strip() for id in os.getenv("BLOCKED_TELEGRAM_IDS", "").split(",") if id.strip())
+
 def get_agent():
     """Get or create the shared agent instance."""
     global _agent
@@ -99,6 +102,11 @@ class TelegramBot:
         # Get user information
         user = update.effective_user
         user_id = str(user.id)  # Using Telegram user ID as the identifier
+        
+        # Check if user is blocked
+        if user_id in BLOCKED_USER_IDS:
+            print(f"Blocked message from user {user_id}")
+            return
         
         # Check if user exists and has necessary info
         existing_user = get_user(user_id)
