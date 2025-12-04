@@ -157,8 +157,6 @@ async def send_message_to_user(user_id: str, message: str):
             from slack_sdk.web.async_client import AsyncWebClient
             client = AsyncWebClient(token=slack_token)
             await client.chat_postMessage(channel=user_id, text=message)
-            # Slack doesn't have a persistent "typing" action like Telegram, 
-            # but the message itself is the update.
             return "Message sent successfully to Slack"
         except Exception as e:
             return f"Error sending message to Slack: {str(e)}"

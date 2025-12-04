@@ -138,17 +138,12 @@ class SlackBot:
         combined_text = "\n".join(messages)
         
         try:
-            # Send initial "thinking" message
-            thinking_msg = await self.app.client.chat_postMessage(channel=channel, text="Thinking...")
-            thinking_ts = thinking_msg["ts"]
-            
             # Calculate timestamp
             message_timestamp_utc = datetime.fromtimestamp(float(ts), tz=timezone.utc)
             IST = timezone(timedelta(hours=5, minutes=30))
             message_timestamp_ist = message_timestamp_utc.astimezone(IST)
             
             has_response = False
-            first_chunk = True
             
             async for chunk in self.agent.invoke(
                 user_id,
@@ -157,23 +152,10 @@ class SlackBot:
                 message_timestamp_ist
             ):
                 if chunk.strip():
-                    # Delete thinking message before sending first chunk
-                    if first_chunk:
-                        try:
-                            await self.app.client.chat_delete(channel=channel, ts=thinking_ts)
-                        except Exception as e:
-                            print(f"Error deleting thinking message: {e}")
-                        first_chunk = False
-                        
                     await self.app.client.chat_postMessage(channel=channel, text=chunk)
                     has_response = True
             
-            # If no response was generated but we sent a thinking message, delete it
             if not has_response:
-                try:
-                    await self.app.client.chat_delete(channel=channel, ts=thinking_ts)
-                except Exception:
-                    pass
                 await self.app.client.chat_postMessage(channel=channel, text="Sorry, I couldn't process that.")
                 
         except Exception as e:
