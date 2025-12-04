@@ -52,8 +52,9 @@ def _initialize_pool():
         return  # Already initialized
     
     database_url = os.getenv('DATABASE_URL')
+    env = os.getenv('ENV', 'LOCAL').upper()
     
-    if database_url:
+    if env == 'PROD' and database_url:
         # Use PostgreSQL with connection pool
         import psycopg2.pool
         _db_type = 'postgres'
@@ -62,6 +63,7 @@ def _initialize_pool():
         # Use SQLite for local development
         _db_type = 'sqlite'
         db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'chats.db')
+        print(f"DEBUG: Connecting to SQLite DB at: {os.path.abspath(db_path)}")
         _sqlite_conn = sqlite3.connect(db_path)
 
 def get_db_connection():

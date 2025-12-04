@@ -24,10 +24,38 @@ except Exception as e:
 
 load_dotenv()
 
-async def send_telegram_message(user_id: str, message: str):
-    """Send a message to a user via Telegram"""
-    bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
-    await bot.send_message(chat_id=user_id, text=message)
+async def send_message(user_id: str, message: str):
+    """Send a message to a user via their preferred platform (Telegram or Slack)"""
+    from user_manager import get_user
+    
+    user = get_user(user_id)
+    platform = user.get('platform', 'telegram') if user else 'telegram'
+    
+    if platform == 'slack':
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            print(f"Error: SLACK_BOT_TOKEN not found for user {user_id}")
+            return
+            
+        try:
+            from slack_sdk.web.async_client import AsyncWebClient
+            client = AsyncWebClient(token=slack_token)
+            await client.chat_postMessage(channel=user_id, text=message)
+        except Exception as e:
+            print(f"Error sending Slack message to {user_id}: {e}")
+            
+    else:
+        # Default to Telegram
+        token = os.getenv('TELEGRAM_BOT_TOKEN')
+        if not token:
+            print(f"Error: TELEGRAM_BOT_TOKEN not found for user {user_id}")
+            return
+            
+        try:
+            bot = Bot(token=token)
+            await bot.send_message(chat_id=user_id, text=message)
+        except Exception as e:
+            print(f"Error sending Telegram message to {user_id}: {e}")
 
 async def process_event(event, worker_agent, donna):
     """Process a single time event with timeout"""
@@ -103,8 +131,8 @@ async def process_event(event, worker_agent, donna):
                 f"{agent_name}"
             ):
                 accumulated_response += chunk
-                # Send each chunk to Telegram immediately
-                await send_telegram_message(user_id, chunk)
+                # Send each chunk to user immediately
+                await send_message(user_id, chunk)
                 print(f"  → Sent chunk to user: {chunk[:30]}...")
             
             donna_response = {"content": accumulated_response}
@@ -175,8 +203,10 @@ async def process_user_events(events, worker_agent, donna):
 async def check_and_process_events(worker_agent, donna):
     """Check for due events and spawn background tasks to process them"""
     try:
+        print(f"Checking for due events at {get_utc_now()}...")
         # Get due events
         events = get_due_events()
+        print(f"get_due_events returned: {len(events)} events")
         
         if not events:
             print("✓ No events due")

@@ -136,20 +136,43 @@ async def send_message_to_user(user_id: str, message: str):
     without waiting for the final response. This does NOT break the agent's thought process loop.
     
     Args:
-        user_id (str): The user's Telegram ID (injected automatically).
+        user_id (str): The user's ID (Telegram ID or Slack User ID, injected automatically).
         message (str): The message content to send to the user.
         
     Returns:
         str: Status of the message sending.
     """
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        return "Error: TELEGRAM_BOT_TOKEN not found"
-        
-    try:
-        bot = Bot(token=token)
-        await bot.send_message(chat_id=user_id, text=message)
-        await bot.send_chat_action(chat_id=user_id, action="typing")
-        return "Message sent successfully"
-    except Exception as e:
-        return f"Error sending message: {str(e)}"
+    from user_manager import get_user
+    
+    # Get user platform
+    user = get_user(user_id)
+    platform = user.get('platform', 'telegram') if user else 'telegram'
+    
+    if platform == 'slack':
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            return "Error: SLACK_BOT_TOKEN not found"
+            
+        try:
+            from slack_sdk.web.async_client import AsyncWebClient
+            client = AsyncWebClient(token=slack_token)
+            await client.chat_postMessage(channel=user_id, text=message)
+            # Slack doesn't have a persistent "typing" action like Telegram, 
+            # but the message itself is the update.
+            return "Message sent successfully to Slack"
+        except Exception as e:
+            return f"Error sending message to Slack: {str(e)}"
+            
+    else:
+        # Default to Telegram
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not token:
+            return "Error: TELEGRAM_BOT_TOKEN not found"
+            
+        try:
+            bot = Bot(token=token)
+            await bot.send_message(chat_id=user_id, text=message)
+            await bot.send_chat_action(chat_id=user_id, action="typing")
+            return "Message sent successfully to Telegram"
+        except Exception as e:
+            return f"Error sending message to Telegram: {str(e)}"

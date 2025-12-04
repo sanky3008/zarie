@@ -10,3 +10,5 @@ mcp
 httpx>=0.24.0
 fastmcp
 aiohttp>=3.9.0
+slack_bolt>=1.18.0
+slack_sdk>=3.27.0
