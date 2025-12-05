@@ -228,6 +228,16 @@ class WorkerAgent:
         # Get context from directory - it's already in LiteLLM format!
         context_blob = self.directory.get_context(agent_name, user_id)
         messages = json.loads(context_blob) if context_blob else []
+
+        # Filter messages: keep only messages after the 5th last user message
+        user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
+        
+        if len(user_indices) >= 5:
+            # We want to keep everything AFTER the 5th last user message
+            # user_indices[-1] is last, [-5] is 5th last
+            # So we start from the message AFTER that one
+            split_index = user_indices[-5] + 1
+            messages = messages[split_index:]
         
         # Add system prompt with dynamic active time events section
         system_prompt = get_system_prompt(agent_name, user_id)
