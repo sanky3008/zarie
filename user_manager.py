@@ -44,7 +44,7 @@ def user_exists(telegram_id: str) -> bool:
         conn.close()
 
 
-def create_or_update_user(telegram_id: str, first_name: str, last_name: str = None, username: str = None, platform: str = 'telegram') -> bool:
+def create_or_update_user(telegram_id: str, first_name: str, last_name: str = None, username: str = None, platform: str = 'telegram', team_id: str = None) -> bool:
     """
     Create a new user or update existing user in the database
     Returns True if successful, False otherwise
@@ -61,24 +61,24 @@ def create_or_update_user(telegram_id: str, first_name: str, last_name: str = No
         if db_type == 'postgres':
             # Use INSERT ... ON CONFLICT for PostgreSQL (upsert)
             cursor.execute("""
-                INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform)
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE, %s)
+                INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE, %s, %s)
                 ON CONFLICT (telegram_id) DO UPDATE
-                SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE, platform = EXCLUDED.platform
-            """, (telegram_id, name, username, platform))
+                SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE, platform = EXCLUDED.platform, team_id = EXCLUDED.team_id
+            """, (telegram_id, name, username, platform, team_id))
         else:
             # For SQLite, check if user exists first to preserve created_at and update has_zarie
             if user_exists(telegram_id):
                 cursor.execute("""
                     UPDATE users
-                    SET name = ?, telegram_username = ?, has_zarie = TRUE, platform = ?
+                    SET name = ?, telegram_username = ?, has_zarie = TRUE, platform = ?, team_id = ?
                     WHERE telegram_id = ?
-                """, (name, username, platform, telegram_id))
+                """, (name, username, platform, team_id, telegram_id))
             else:
                 cursor.execute("""
-                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, TRUE, ?)
-                """, (telegram_id, name, username, platform))
+                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, TRUE, ?, ?)
+                """, (telegram_id, name, username, platform, team_id))
         
         conn.commit()
         return True
@@ -96,7 +96,7 @@ def get_user(telegram_id: str):
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform FROM users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id FROM users WHERE telegram_id = ?", (telegram_id,))
         result = cursor.fetchone()
         
         if result:
@@ -108,7 +108,8 @@ def get_user(telegram_id: str):
                     'telegram_username': result[3],
                     'created_at': result[4],
                     'has_zarie': result[5],
-                    'platform': result[6]
+                    'platform': result[6],
+                    'team_id': result[7]
                 }
             else:
                 return {
@@ -118,7 +119,8 @@ def get_user(telegram_id: str):
                     'telegram_username': result[3],
                     'created_at': result[4],
                     'has_zarie': bool(result[5]), # SQLite stores booleans as 0/1
-                    'platform': result[6]
+                    'platform': result[6],
+                    'team_id': result[7]
                 }
         return None
     except Exception as e:

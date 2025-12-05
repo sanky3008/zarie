@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from telegram_bot import TelegramBot
-from slack_bot import SlackBot
+from slack_app.bot import SlackBot
 from dotenv import load_dotenv
 
 # Configure logging
