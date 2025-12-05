@@ -32,11 +32,29 @@ async def send_message(user_id: str, message: str):
     platform = user.get('platform', 'telegram') if user else 'telegram'
     
     if platform == 'slack':
-        slack_token = os.getenv("SLACK_BOT_TOKEN")
-        if not slack_token:
-            print(f"Error: SLACK_BOT_TOKEN not found for user {user_id}")
+        team_id = user.get('team_id')
+        if not team_id:
+            print(f"Error: Slack user {user_id} missing team_id")
             return
             
+        # Fetch bot token from DB
+        from user_manager import get_db_connection
+        conn, db_type = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            query = "SELECT bot_token FROM slack_bots WHERE team_id = %s" if db_type == 'postgres' else "SELECT bot_token FROM slack_bots WHERE team_id = ?"
+            cursor.execute(query, (team_id,))
+            result = cursor.fetchone()
+            if not result:
+                print(f"Error: No bot token found for team_id {team_id}")
+                return
+            slack_token = result[0]
+        except Exception as e:
+            print(f"Error fetching Slack token: {str(e)}")
+            return
+        finally:
+            conn.close()
+
         try:
             from slack_sdk.web.async_client import AsyncWebClient
             client = AsyncWebClient(token=slack_token)
