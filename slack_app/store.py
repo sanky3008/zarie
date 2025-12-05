@@ -9,6 +9,134 @@ class CustomInstallationStore(AsyncInstallationStore):
     def __init__(self, client_id: str = None):
         self._logger = logging.getLogger(__name__)
         self.client_id = client_id
+        self.init_db()
+
+    def init_db(self):
+        """Initialize database tables if they don't exist."""
+        conn, db_type = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            if db_type == 'postgres':
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS slack_installations (
+                        id SERIAL PRIMARY KEY,
+                        client_id TEXT,
+                        app_id TEXT,
+                        enterprise_id TEXT,
+                        enterprise_name TEXT,
+                        enterprise_url TEXT,
+                        team_id TEXT,
+                        team_name TEXT,
+                        bot_token TEXT,
+                        bot_id TEXT,
+                        bot_user_id TEXT,
+                        bot_scopes TEXT,
+                        bot_refresh_token TEXT,
+                        bot_token_expires_at TIMESTAMP,
+                        user_id TEXT,
+                        user_token TEXT,
+                        user_scopes TEXT,
+                        user_refresh_token TEXT,
+                        user_token_expires_at TIMESTAMP,
+                        incoming_webhook_url TEXT,
+                        incoming_webhook_channel TEXT,
+                        incoming_webhook_channel_id TEXT,
+                        incoming_webhook_configuration_url TEXT,
+                        is_enterprise_install BOOLEAN,
+                        token_type TEXT,
+                        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_slack_installations_team_id ON slack_installations(team_id);
+                    
+                    CREATE TABLE IF NOT EXISTS slack_bots (
+                        id SERIAL PRIMARY KEY,
+                        client_id TEXT,
+                        app_id TEXT,
+                        enterprise_id TEXT,
+                        enterprise_name TEXT,
+                        team_id TEXT,
+                        team_name TEXT,
+                        bot_token TEXT,
+                        bot_id TEXT,
+                        bot_user_id TEXT,
+                        bot_scopes TEXT,
+                        bot_refresh_token TEXT,
+                        bot_token_expires_at TIMESTAMP,
+                        is_enterprise_install BOOLEAN,
+                        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_slack_bots_team_id ON slack_bots(team_id);
+                    
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS team_id TEXT;
+                """)
+            else:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS slack_installations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        client_id TEXT,
+                        app_id TEXT,
+                        enterprise_id TEXT,
+                        enterprise_name TEXT,
+                        enterprise_url TEXT,
+                        team_id TEXT,
+                        team_name TEXT,
+                        bot_token TEXT,
+                        bot_id TEXT,
+                        bot_user_id TEXT,
+                        bot_scopes TEXT,
+                        bot_refresh_token TEXT,
+                        bot_token_expires_at TIMESTAMP,
+                        user_id TEXT,
+                        user_token TEXT,
+                        user_scopes TEXT,
+                        user_refresh_token TEXT,
+                        user_token_expires_at TIMESTAMP,
+                        incoming_webhook_url TEXT,
+                        incoming_webhook_channel TEXT,
+                        incoming_webhook_channel_id TEXT,
+                        incoming_webhook_configuration_url TEXT,
+                        is_enterprise_install BOOLEAN,
+                        token_type TEXT,
+                        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_slack_installations_team_id ON slack_installations(team_id);")
+                
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS slack_bots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        client_id TEXT,
+                        app_id TEXT,
+                        enterprise_id TEXT,
+                        enterprise_name TEXT,
+                        team_id TEXT,
+                        team_name TEXT,
+                        bot_token TEXT,
+                        bot_id TEXT,
+                        bot_user_id TEXT,
+                        bot_scopes TEXT,
+                        bot_refresh_token TEXT,
+                        bot_token_expires_at TIMESTAMP,
+                        is_enterprise_install BOOLEAN,
+                        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_slack_bots_team_id ON slack_bots(team_id);")
+                
+                # SQLite ALTER TABLE ADD COLUMN needs try-except for duplicate column check usually, 
+                # but let's assume it's fine or handle it if needed. 
+                # Actually, let's keep it simple and safe.
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN team_id TEXT;")
+                except Exception:
+                    pass
+
+            conn.commit()
+        except Exception as e:
+            self._logger.error(f"Error initializing DB tables: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
 
     async def async_save(self, installation: Installation):
         return await asyncio.to_thread(self.save, installation)
