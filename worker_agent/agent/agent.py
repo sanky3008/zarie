@@ -233,8 +233,8 @@ class WorkerAgent:
         user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
         
         if len(user_indices) >= 25:
-            # We want to keep everything AFTER the 5th last user message
-            # user_indices[-1] is last, [-5] is 5th last
+            # We want to keep everything AFTER the 25th last user message
+            # user_indices[-1] is last, [-5] is 25th last
             # So we start from the message AFTER that one
             split_index = user_indices[-5] + 1
             messages = messages[split_index:]
