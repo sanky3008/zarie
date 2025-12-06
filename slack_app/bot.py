@@ -74,8 +74,13 @@ class SlackBot:
             user_id = event.get("user")
             text = event.get("text")
             channel = event.get("channel")
+            channel_type = event.get("channel_type")
             ts = event.get("ts") # Timestamp
             team_id = body.get("team_id") # Get team_id from the outer body
+            
+            # Only process 1:1 Direct Messages
+            if channel_type != "im":
+                return
             
             if not user_id or not text:
                 return
