@@ -232,7 +232,7 @@ class WorkerAgent:
         # Filter messages: keep only messages after the 5th last user message
         user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
         
-        if len(user_indices) >= 5:
+        if len(user_indices) >= 25:
             # We want to keep everything AFTER the 5th last user message
             # user_indices[-1] is last, [-5] is 5th last
             # So we start from the message AFTER that one
