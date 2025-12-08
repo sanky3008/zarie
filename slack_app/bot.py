@@ -41,7 +41,7 @@ class SlackBot:
         oauth_settings = AsyncOAuthSettings(
             client_id=self.client_id,
             client_secret=self.client_secret,
-            scopes=["app_mentions:read", "chat:write", "im:history", "im:write", "users:read"], # Add other scopes as needed
+            scopes=["app_mentions:read", "chat:write", "im:history", "users:read"], # Add other scopes as needed
             installation_store=self.installation_store,
             install_path="/slack/install",
             redirect_uri_path="/slack/oauth_redirect",
