@@ -245,7 +245,7 @@ class WorkerAgent:
         # Check for summarization trigger
         running_summary = self.directory.get_running_summary(agent_name, user_id)
         
-        summaisation_length = 500
+        summaisation_length = 100
         if len(messages) > summaisation_length:
              # We want to summarise the "old" part to keep the context window manageable.
              # Let's say we keep the last 25 user messages always available as "raw" context.
