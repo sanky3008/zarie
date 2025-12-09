@@ -45,6 +45,7 @@ class SlackBot:
             installation_store=self.installation_store,
             install_path="/slack/install",
             redirect_uri_path="/slack/oauth_redirect",
+            install_page_rendering_enabled=False,
         )
         
         self.app = AsyncApp(

@@ -185,7 +185,7 @@ class WorkerAgent:
         self.directory.add_context(agent_name, user_id, user_message)
         
         # Prepare messages for LLM
-        messages = self._prepare_messages(agent_name, user_id)
+        messages = await self._prepare_messages(agent_name, user_id)
         
         # Run ReAct loop and get final response
         assistant_message = await self._react_loop(messages, agent_name, user_id)
@@ -223,33 +223,65 @@ class WorkerAgent:
             "content": f"Date: {date_str}\nTime: {time_str}\nFROM: {medium}\nMessage: {message}"
         }
     
-    def _prepare_messages(self, agent_name, user_id):
+    async def _prepare_messages(self, agent_name, user_id):
         """Prepare messages array for LLM from context."""
         # Get context from directory - it's already in LiteLLM format!
         context_blob = self.directory.get_context(agent_name, user_id)
         messages = json.loads(context_blob) if context_blob else []
-
-        # Filter messages: keep only messages after the 5th last user message
+        
+        # Helper to find user message indices
         user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
         
-        if len(user_indices) >= 25:
-            # We want to keep everything AFTER the 25th last user message
-            # user_indices[-1] is last, [-5] is 25th last
-            # So we start from the message AFTER that one
-            split_index = user_indices[-5] + 1
-            messages = messages[split_index:]
+        # Split logic: keep everything AFTER the 5th last user message as "recent"
+        split_index = 0
+        if len(user_indices) >= 5:
+             # If we want 5 recent user messages:
+             # user_indices[-5] is the index of the 5th message from the end
+             split_index = user_indices[-5]
+        
+        old_messages = messages[:split_index]
+        recent_messages = messages[split_index:]
+        
+        # Check for summarization trigger
+        running_summary = self.directory.get_running_summary(agent_name, user_id)
+        
+        summaisation_length = 500
+        if len(messages) > summaisation_length:
+             # We want to summarise the "old" part to keep the context window manageable.
+             # Let's say we keep the last 25 user messages always available as "raw" context.
+             # So we summarise everything before that.
+             if split_index > 0:
+                 from worker_agent.agent.summarisation import summarise_context
+                 new_summary = await summarise_context(self.directory, agent_name, user_id, old_messages)
+                 if new_summary:
+                     running_summary = new_summary
+                     # Clear old_messages as they are now summarised
+                     # Note: summarise_context marks them as summarised in DB, so subsequent calls won't fetch them.
+                     # But for THIS call, we need to remove them from prompt.
+                     # recent_messages are what remains.
+                     pass 
         
         # Add system prompt with dynamic active time events section
         system_prompt = get_system_prompt(agent_name, user_id)
+        
+        # Inject running summary if exists
+        if running_summary:
+            system_prompt += f"\n\n4. **Worker Agent Context Summary (OPERATIONAL)**\n<worker_context_summary>\n{running_summary}\n</worker_context_summary>"
 
         # print(system_prompt)
+        final_messages = []
         if system_prompt:
-            messages.insert(0, {
+            final_messages.append({
                 "role": "system",
                 "content": system_prompt
             })
         
-        return messages
+        if len(messages) > summaisation_length and split_index > 0:
+            final_messages.extend(recent_messages)
+        else:
+            final_messages.extend(messages)
+        
+        return final_messages
     
     async def _react_loop(self, messages, agent_name, user_id):
         """Run ReAct loop until we get a normal response (no tool calls)."""

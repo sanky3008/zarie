@@ -92,6 +92,7 @@ class Directory:
                             agent_name TEXT NOT NULL,
                             user_id TEXT NOT NULL,
                             purpose TEXT,
+                            running_summary TEXT,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             PRIMARY KEY (agent_name, user_id)
@@ -110,6 +111,7 @@ class Directory:
                             tool_calls TEXT,
                             tool_call_id TEXT,
                             tool_name TEXT,
+                            is_summarised BOOLEAN DEFAULT FALSE,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             UNIQUE(agent_name, user_id, message_sequence),
                             FOREIGN KEY (agent_name, user_id) REFERENCES worker_agent_directory_v2(agent_name, user_id)
@@ -145,6 +147,7 @@ class Directory:
                         agent_name TEXT NOT NULL,
                         user_id TEXT NOT NULL,
                         purpose TEXT,
+                        running_summary TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (agent_name, user_id)
@@ -166,6 +169,7 @@ class Directory:
                         tool_calls TEXT,
                         tool_call_id TEXT,
                         tool_name TEXT,
+                        is_summarised BOOLEAN DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(agent_name, user_id, message_sequence)
                     )
@@ -218,9 +222,9 @@ class Directory:
             try:
                 with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
                     cursor.execute("""
-                        SELECT role, content, tool_calls, tool_call_id, tool_name 
+                        SELECT role, content, tool_calls, tool_call_id, tool_name, message_sequence 
                         FROM worker_agent_context 
-                        WHERE agent_name = %s AND user_id = %s 
+                        WHERE agent_name = %s AND user_id = %s AND (is_summarised IS FALSE OR is_summarised IS NULL)
                         ORDER BY message_sequence ASC
                     """, (agent_name, user_id))
                     rows = cursor.fetchall()
@@ -230,7 +234,8 @@ class Directory:
                     for row in rows:
                         msg = {
                             "role": row['role'],
-                            "content": row['content']
+                            "content": row['content'],
+                            "message_sequence": row['message_sequence']
                         }
                         # Add tool_calls if present
                         if row['tool_calls']:
@@ -248,9 +253,9 @@ class Directory:
         else:
             with self.lock:
                 self.cursor.execute("""
-                    SELECT role, content, tool_calls, tool_call_id, tool_name 
+                    SELECT role, content, tool_calls, tool_call_id, tool_name, message_sequence
                     FROM worker_agent_context 
-                    WHERE agent_name = ? AND user_id = ? 
+                    WHERE agent_name = ? AND user_id = ? AND (is_summarised = 0 OR is_summarised IS NULL)
                     ORDER BY message_sequence ASC
                 """, (agent_name, user_id))
                 rows = self.cursor.fetchall()
@@ -260,7 +265,8 @@ class Directory:
                 for row in rows:
                     msg = {
                         "role": row[0],
-                        "content": row[1]
+                        "content": row[1],
+                        "message_sequence": row[5]
                     }
                     # Add tool_calls if present
                     if row[2]:
@@ -273,6 +279,61 @@ class Directory:
                     messages.append(msg)
                 
                 return json.dumps(messages) if messages else None
+
+    def get_running_summary(self, agent_name, user_id):
+        """Get the running summary for a worker agent."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT running_summary FROM worker_agent_directory_v2 WHERE agent_name = %s AND user_id = %s", (agent_name, user_id))
+                    row = cursor.fetchone()
+                    return row[0] if row else None
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("SELECT running_summary FROM worker_agent_directory_v2 WHERE agent_name = ? AND user_id = ?", (agent_name, user_id))
+                row = self.cursor.fetchone()
+                return row[0] if row else None
+
+    def update_running_summary(self, agent_name, user_id, summary):
+        """Update the running summary for a worker agent."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("UPDATE worker_agent_directory_v2 SET running_summary = %s WHERE agent_name = %s AND user_id = %s", (summary, agent_name, user_id))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("UPDATE worker_agent_directory_v2 SET running_summary = ? WHERE agent_name = ? AND user_id = ?", (summary, agent_name, user_id))
+                self.conn.commit()
+
+    def mark_messages_up_to_sequence(self, agent_name, user_id, max_sequence):
+        """Mark all messages up to (and including) max_sequence as summarised."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE worker_agent_context 
+                        SET is_summarised = TRUE 
+                        WHERE agent_name = %s AND user_id = %s AND message_sequence <= %s
+                    """, (agent_name, user_id, max_sequence))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("""
+                    UPDATE worker_agent_context 
+                    SET is_summarised = 1 
+                    WHERE agent_name = ? AND user_id = ? AND message_sequence <= ?
+                """, (agent_name, user_id, max_sequence))
+                self.conn.commit()
     
     def add_context(self, agent_name, user_id, response_or_responses, purpose=None):
         """Add context for a given agent to the context table. Can handle single response or list of responses."""
