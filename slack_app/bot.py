@@ -225,8 +225,25 @@ class SlackBot:
                 request=bolt_req
             )
             
-            # Raise exception instead of returning it to avoid DeprecationWarning
-            raise web.HTTPFound(url)
+            # Create redirect response and set the state cookie
+            response = web.HTTPFound(url)
+            
+            # Get cookie name from settings (default is "slack-app-oauth-state")
+            cookie_name = self.app.oauth_flow.settings.state_cookie_name
+            
+            # Set cookie with proper security settings
+            # httponly=True prevents JS access, secure=True ensures it's sent only over HTTPS
+            response.set_cookie(
+                cookie_name, 
+                state, 
+                max_age=600, # 10 minutes expiry
+                secure=True, 
+                httponly=True,
+                path="/"
+            )
+            
+            # Raise the response to trigger the redirect
+            raise response
         except web.HTTPFound:
             raise
         except Exception as e:
