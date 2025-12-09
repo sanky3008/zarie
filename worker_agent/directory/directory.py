@@ -245,6 +245,13 @@ class Directory:
                             msg['tool_call_id'] = row['tool_call_id']
                         if row['tool_name']:
                             msg['tool_name'] = row['tool_name']
+                        
+                        # Truncate content for Brave Search tools
+                        if msg.get('tool_name') in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
+                            content = msg.get('content')
+                            if content and len(content) > 200:
+                                msg['content'] = content[:200] + "...[TRUNCATED]"
+
                         messages.append(msg)
                     
                     return json.dumps(messages) if messages else None
@@ -276,6 +283,13 @@ class Directory:
                         msg['tool_call_id'] = row[3]
                     if row[4]:
                         msg['tool_name'] = row[4]
+                    
+                    # Truncate content for Brave Search tools
+                    if msg.get('tool_name') in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
+                        content = msg.get('content')
+                        if content and len(content) > 200:
+                            msg['content'] = content[:200] + "...[TRUNCATED]"
+
                     messages.append(msg)
                 
                 return json.dumps(messages) if messages else None

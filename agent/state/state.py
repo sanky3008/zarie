@@ -178,8 +178,8 @@ class State:
                         
                         # Truncate content for Brave Search tools
                         if tool_name in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
-                            if content and len(content) > 2000:
-                                content = content[:2000] + "...[TRUNCATED]"
+                            if content and len(content) > 200:
+                                content = content[:200] + "...[TRUNCATED]"
                         
                         msg = {
                             "role": row['role'],
@@ -219,8 +219,8 @@ class State:
                     
                     # Truncate content for Brave Search tools
                     if tool_name in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
-                        if content and len(content) > 500:
-                            content = content[:500] + "...[TRUNCATED]"
+                        if content and len(content) > 200:
+                            content = content[:200] + "...[TRUNCATED]"
                     
                     msg = {
                         "role": row[0],
