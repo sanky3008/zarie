@@ -63,24 +63,8 @@ class SlackBot:
         
         self.app = AsyncApp(
             signing_secret=self.signing_secret,
-            oauth_settings=oauth_settings,
-            request_verification_enabled=False # We will handle this manually to exclude install routes
+            oauth_settings=oauth_settings
         )
-        
-        # Manual request verification middleware
-        from slack_sdk.signature import SignatureVerifier
-        self.signature_verifier = SignatureVerifier(self.signing_secret)
-        
-        @self.app.middleware
-        async def verify_request(req, next):
-            if req.path.startswith("/slack/install") or req.path.startswith("/slack/oauth_redirect"):
-                return await next()
-                
-            if self.signature_verifier.is_valid_request(req.body, req.headers):
-                return await next()
-            else:
-                return web.Response(status=401, text="Invalid request signature")
-
         
         self.handler = AsyncSlackRequestHandler(self.app)
         
@@ -224,26 +208,70 @@ class SlackBot:
         # Custom install handler
     async def handle_install(self, request):
         try:
+            # Convert aiohttp request to Bolt request to ensure cookies/headers are processed for state
+            bolt_req = await to_bolt_request(request)
+            # Patch missing attributes for BoltRequest if needed (similar to handler)
+            bolt_req.method = request.method
+            bolt_req.path = request.path
+            bolt_req.query = dict(request.query)
+
+            # Generate state using the proper Bolt request
+            state = await self.app.oauth_flow.issue_new_state(bolt_req)
+            print(f"DEBUG: Generated OAuth State: {state}")
+            
             # Generate the OAuth URL
             url = await self.app.oauth_flow.build_authorize_url(
-                state=await self.app.oauth_flow.issue_new_state(request),
-                request=request
+                state=state,
+                request=bolt_req
             )
-            return web.HTTPFound(url)
+            
+            # Raise exception instead of returning it to avoid DeprecationWarning
+            raise web.HTTPFound(url)
+        except web.HTTPFound:
+            raise
         except Exception as e:
             print(f"Error handling install redirect: {e}")
             return web.Response(status=500, text="Internal Server Error")
+
+    # Custom OAuth callback handler
+    async def handle_oauth_redirect(self, request):
+        try:
+            print(f"DEBUG: Callback Query: {dict(request.query)}")
+            # Convert aiohttp request to Bolt request
+            bolt_req = await to_bolt_request(request)
+            # Patch missing attributes
+            bolt_req.method = request.method
+            bolt_req.path = request.path
+            bolt_req.query = dict(request.query)
+            
+            # Handle the callback directly using the OAuth flow
+            # This bypasses the global authorization middleware
+            completion = await self.app.oauth_flow.handle_callback(bolt_req)
+            
+            return await to_aiohttp_response(completion)
+        except Exception as e:
+            print(f"Error handling OAuth redirect: {e}")
+            return web.Response(status=500, text=f"Installation failed: {e}")
 
     async def start(self):
         """Start the Slack bot (HTTP Server for Events + OAuth)."""
         print("Starting Slack HTTP Server on port 3000...")
 
         app = web.Application()
+        
+        # Simple logging middleware
+        @web.middleware
+        async def logging_middleware(request, handler):
+            print(f"Request received: {request.method} {request.path}")
+            return await handler(request)
+            
+        app.middlewares.append(logging_middleware)
+        
         # Bind routes to the AsyncSlackRequestHandler
         app.add_routes([
             web.post("/slack/events", self.handler.handle),
-            web.get("/slack/install", self.handle_install), # Use custom handler
-            web.get("/slack/oauth_redirect", self.handler.handle),
+            web.get("/slack/install", self.handle_install), # Custom handler
+            web.get("/slack/oauth_redirect", self.handle_oauth_redirect), # Custom handler
         ])
 
         runner = web.AppRunner(app)
