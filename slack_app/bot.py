@@ -221,6 +221,19 @@ class SlackBot:
             print(f"Error processing Slack message: {e}")
             await client.chat_postMessage(channel=channel, text="Oops, something went wrong.")
 
+        # Custom install handler
+    async def handle_install(self, request):
+        try:
+            # Generate the OAuth URL
+            url = await self.app.oauth_flow.build_authorize_url(
+                state=await self.app.oauth_flow.issue_new_state(request),
+                request=request
+            )
+            return web.HTTPFound(url)
+        except Exception as e:
+            print(f"Error handling install redirect: {e}")
+            return web.Response(status=500, text="Internal Server Error")
+
     async def start(self):
         """Start the Slack bot (HTTP Server for Events + OAuth)."""
         print("Starting Slack HTTP Server on port 3000...")
@@ -229,7 +242,7 @@ class SlackBot:
         # Bind routes to the AsyncSlackRequestHandler
         app.add_routes([
             web.post("/slack/events", self.handler.handle),
-            web.get("/slack/install", self.handler.handle),
+            web.get("/slack/install", self.handle_install), # Use custom handler
             web.get("/slack/oauth_redirect", self.handler.handle),
         ])
 
