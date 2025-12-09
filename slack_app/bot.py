@@ -3,7 +3,7 @@ import asyncio
 import logging
 from aiohttp import web
 from slack_bolt.app.async_app import AsyncApp
-from slack_bolt.adapter.aiohttp import AsyncSlackRequestHandler
+from slack_bolt.adapter.aiohttp import to_bolt_request, to_aiohttp_response
 from slack_bolt.oauth.async_oauth_settings import AsyncOAuthSettings
 from agent.agent import Agent
 from user_manager import create_or_update_user, get_user
@@ -22,6 +22,17 @@ def get_agent():
     if _agent is None:
         _agent = Agent()
     return _agent
+
+class AsyncSlackRequestHandler:
+    def __init__(self, app):
+        self.app = app
+
+    async def handle(self, request):
+        return await to_aiohttp_response(
+            await self.app.async_dispatch(
+                await to_bolt_request(request)
+            )
+        )
 
 class SlackBot:
     def __init__(self):
