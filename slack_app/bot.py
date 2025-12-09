@@ -31,6 +31,18 @@ class AsyncSlackRequestHandler:
         bolt_req = await to_bolt_request(request)
         resp = await self.app.async_dispatch(bolt_req)
         return await to_aiohttp_response(resp)
+    
+    async def handle_oauth(self, request):
+        """Handle OAuth requests without signature verification."""
+        bolt_req = await to_bolt_request(request)
+        # OAuth requests go directly to the OAuth flow, bypassing signature verification
+        if request.path == "/slack/install":
+            resp = await self.app.oauth_flow.handle_installation(bolt_req)
+        elif request.path == "/slack/oauth_redirect":
+            resp = await self.app.oauth_flow.handle_callback(bolt_req)
+        else:
+            resp = await self.app.async_dispatch(bolt_req)
+        return await to_aiohttp_response(resp)
 
 class SlackBot:
     def __init__(self):
@@ -215,14 +227,13 @@ class SlackBot:
             
         app.middlewares.append(logging_middleware)
         
-        # Route all Slack endpoints through Bolt's dispatcher
-        # Bolt automatically handles these routes via oauth_settings:
-        # - POST /slack/events → Event handling
-        # - GET /slack/install → OAuth authorization page
-        # - GET /slack/oauth_redirect → Token exchange + installation storage
+        # Route endpoints:
+        # - POST /slack/events → Event handling (with signature verification)
+        # - GET /slack/install → OAuth authorization (no signature)
+        # - GET /slack/oauth_redirect → OAuth callback (no signature)
         app.router.add_post("/slack/events", self.handler.handle)
-        app.router.add_get("/slack/install", self.handler.handle)
-        app.router.add_get("/slack/oauth_redirect", self.handler.handle)
+        app.router.add_get("/slack/install", self.handler.handle_oauth)
+        app.router.add_get("/slack/oauth_redirect", self.handler.handle_oauth)
 
         runner = web.AppRunner(app)
         await runner.setup()
