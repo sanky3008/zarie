@@ -63,8 +63,24 @@ class SlackBot:
         
         self.app = AsyncApp(
             signing_secret=self.signing_secret,
-            oauth_settings=oauth_settings
+            oauth_settings=oauth_settings,
+            request_verification_enabled=False # We will handle this manually to exclude install routes
         )
+        
+        # Manual request verification middleware
+        from slack_sdk.signature import SignatureVerifier
+        self.signature_verifier = SignatureVerifier(self.signing_secret)
+        
+        @self.app.middleware
+        async def verify_request(req, next):
+            if req.path.startswith("/slack/install") or req.path.startswith("/slack/oauth_redirect"):
+                return await next()
+                
+            if self.signature_verifier.is_valid_request(req.body, req.headers):
+                return await next()
+            else:
+                return web.Response(status=401, text="Invalid request signature")
+
         
         self.handler = AsyncSlackRequestHandler(self.app)
         
