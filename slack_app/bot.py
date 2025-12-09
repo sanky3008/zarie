@@ -29,12 +29,7 @@ class AsyncSlackRequestHandler:
 
     async def handle(self, request):
         bolt_req = await to_bolt_request(request)
-        # Patch missing attributes required by AsyncApp
-        bolt_req.method = request.method
-        bolt_req.path = request.path
-        bolt_req.query = dict(request.query)
         resp = await self.app.async_dispatch(bolt_req)
-        
         return await to_aiohttp_response(resp)
 
 class SlackBot:
@@ -206,54 +201,6 @@ class SlackBot:
             print(f"Error processing Slack message: {e}")
             await client.chat_postMessage(channel=channel, text="Oops, something went wrong.")
 
-        # Custom install handler
-    async def handle_install(self, request):
-        try:
-            # Convert aiohttp request to Bolt request to ensure cookies/headers are processed for state
-            bolt_req = await to_bolt_request(request)
-            # Patch missing attributes for BoltRequest if needed (similar to handler)
-            bolt_req.method = request.method
-            bolt_req.path = request.path
-            bolt_req.query = dict(request.query)
-
-            # Generate state using the proper Bolt request
-            state = await self.app.oauth_flow.issue_new_state(bolt_req)
-            print(f"DEBUG: Generated OAuth State: {state}")
-            
-            # Generate the OAuth URL
-            url = await self.app.oauth_flow.build_authorize_url(
-                state=state,
-                request=bolt_req
-            )
-            
-            # Raise exception instead of returning it to avoid DeprecationWarning
-            raise web.HTTPFound(url)
-        except web.HTTPFound:
-            raise
-        except Exception as e:
-            print(f"Error handling install redirect: {e}")
-            return web.Response(status=500, text="Internal Server Error")
-
-    # Custom OAuth callback handler
-    async def handle_oauth_redirect(self, request):
-        try:
-            print(f"DEBUG: Callback Query: {dict(request.query)}")
-            # Convert aiohttp request to Bolt request
-            bolt_req = await to_bolt_request(request)
-            # Patch missing attributes
-            bolt_req.method = request.method
-            bolt_req.path = request.path
-            bolt_req.query = dict(request.query)
-            
-            # Handle the callback directly using the OAuth flow
-            # This bypasses the global authorization middleware
-            completion = await self.app.oauth_flow.handle_callback(bolt_req)
-            
-            return await to_aiohttp_response(completion)
-        except Exception as e:
-            print(f"Error handling OAuth redirect: {e}")
-            return web.Response(status=500, text=f"Installation failed: {e}")
-
     async def start(self):
         """Start the Slack bot (HTTP Server for Events + OAuth)."""
         print("Starting Slack HTTP Server on port 3000...")
@@ -268,12 +215,14 @@ class SlackBot:
             
         app.middlewares.append(logging_middleware)
         
-        # Bind routes to the AsyncSlackRequestHandler
-        app.add_routes([
-            web.post("/slack/events", self.handler.handle),
-            web.get("/slack/install", self.handle_install), # Custom handler
-            web.get("/slack/oauth_redirect", self.handle_oauth_redirect), # Custom handler
-        ])
+        # Route all Slack endpoints through Bolt's dispatcher
+        # Bolt automatically handles these routes via oauth_settings:
+        # - POST /slack/events → Event handling
+        # - GET /slack/install → OAuth authorization page
+        # - GET /slack/oauth_redirect → Token exchange + installation storage
+        app.router.add_post("/slack/events", self.handler.handle)
+        app.router.add_get("/slack/install", self.handler.handle)
+        app.router.add_get("/slack/oauth_redirect", self.handler.handle)
 
         runner = web.AppRunner(app)
         await runner.setup()
@@ -281,20 +230,12 @@ class SlackBot:
         await site.start()
         
         print("Slack HTTP Server running on port 3000.")
+        print("Endpoints configured:")
+        print("  - POST /slack/events (Event API)")
+        print("  - GET /slack/install (OAuth authorization)")
+        print("  - GET /slack/oauth_redirect (OAuth callback)")
         
-        # Keep running - looking for a way to keep this alive if it's the only thing, 
-        # but in main.py this is awaited. 
-        # Since site.start() is non-blocking, we need a keep-alive here or rely on the main loop.
-        # Given main.py awaits this, we should return a future or just sleep forever.
-        # However, main.py awaits both bots. main() ends if this returns.
-        # site.start() starts the server in bg.
-        
-        # We'll just return control. main.py has `asyncio.run(main())` which finishes if tasks finish.
-        # But wait, in main.py:
-        # await telegram_bot.start() (returns, non-blocking updater)
-        # await slack_bot.start() (WAS blocking with socket mode)
-        # We need to make this blocking or main.py will exit.
-        
+        # Keep the server running
         stop_event = asyncio.Event()
         try:
             await stop_event.wait()
