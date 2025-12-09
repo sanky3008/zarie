@@ -29,12 +29,11 @@ class AsyncSlackRequestHandler:
 
     async def handle(self, request):
         bolt_req = await to_bolt_request(request)
-        print(f"DEBUG: Handling request: {bolt_req.method} {bolt_req.path}")
-        print(f"DEBUG: Query: {bolt_req.query}")
-        
+        # Patch missing attributes required by AsyncApp
+        bolt_req.method = request.method
+        bolt_req.path = request.path
+        bolt_req.query = dict(request.query)
         resp = await self.app.async_dispatch(bolt_req)
-        
-        print(f"DEBUG: Dispatch response: {resp.status} {resp.body}")
         
         return await to_aiohttp_response(resp)
 
