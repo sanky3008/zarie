@@ -3,7 +3,7 @@ import asyncio
 import logging
 from aiohttp import web
 from slack_bolt.app.async_app import AsyncApp
-from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+from slack_bolt.adapter.aiohttp import AsyncSlackRequestHandler
 from slack_bolt.oauth.async_oauth_settings import AsyncOAuthSettings
 from agent.agent import Agent
 from user_manager import create_or_update_user, get_user
@@ -28,13 +28,12 @@ class SlackBot:
         """Initialize the Slack bot."""
         self.agent = get_agent()
         
-        self.app_token = os.getenv("SLACK_APP_TOKEN")
         self.client_id = os.getenv("SLACK_CLIENT_ID")
         self.client_secret = os.getenv("SLACK_CLIENT_SECRET")
         self.signing_secret = os.getenv("SLACK_SIGNING_SECRET")
         
-        if not self.app_token or not self.client_id or not self.client_secret or not self.signing_secret:
-            raise ValueError("SLACK_APP_TOKEN, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and SLACK_SIGNING_SECRET must be set.")
+        if not self.client_id or not self.client_secret or not self.signing_secret:
+            raise ValueError("SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and SLACK_SIGNING_SECRET must be set.")
         
         self.installation_store = CustomInstallationStore(client_id=self.client_id)
         
@@ -53,7 +52,7 @@ class SlackBot:
             oauth_settings=oauth_settings
         )
         
-        self.handler = AsyncSocketModeHandler(self.app, self.app_token)
+        self.handler = AsyncSlackRequestHandler(self.app)
         
         # Buffer for debouncing: { user_id: { 'messages': [str], 'task': asyncio.Task } }
         self.user_message_buffers = {}
@@ -193,24 +192,40 @@ class SlackBot:
             await client.chat_postMessage(channel=channel, text="Oops, something went wrong.")
 
     async def start(self):
-        """Start the Slack bot (Socket Mode + OAuth Server)."""
-        print("Starting Slack Socket Mode Handler...")
-        # Start Socket Mode in the background
-        socket_task = asyncio.create_task(self.handler.start_async())
-        
-        print("Starting Slack OAuth Server on port 3000...")
-        # Start the web server for OAuth manually to avoid blocking the loop
-        # self.app.web_app is a method that returns the underlying aiohttp.web.Application
-        runner = web.AppRunner(self.app.web_app())
+        """Start the Slack bot (HTTP Server for Events + OAuth)."""
+        print("Starting Slack HTTP Server on port 3000...")
+
+        app = web.Application()
+        # Bind routes to the AsyncSlackRequestHandler
+        app.add_routes([
+            web.post("/slack/events", self.handler.handle),
+            web.get("/slack/install", self.handler.handle),
+            web.get("/slack/oauth_redirect", self.handler.handle),
+        ])
+
+        runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 3000)
         await site.start()
         
-        print("Slack OAuth Server running on port 3000.")
+        print("Slack HTTP Server running on port 3000.")
         
-        # Keep running until cancelled
+        # Keep running - looking for a way to keep this alive if it's the only thing, 
+        # but in main.py this is awaited. 
+        # Since site.start() is non-blocking, we need a keep-alive here or rely on the main loop.
+        # Given main.py awaits this, we should return a future or just sleep forever.
+        # However, main.py awaits both bots. main() ends if this returns.
+        # site.start() starts the server in bg.
+        
+        # We'll just return control. main.py has `asyncio.run(main())` which finishes if tasks finish.
+        # But wait, in main.py:
+        # await telegram_bot.start() (returns, non-blocking updater)
+        # await slack_bot.start() (WAS blocking with socket mode)
+        # We need to make this blocking or main.py will exit.
+        
+        stop_event = asyncio.Event()
         try:
-            await socket_task
+            await stop_event.wait()
         except asyncio.CancelledError:
             pass
         finally:
