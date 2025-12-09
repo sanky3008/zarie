@@ -129,3 +129,36 @@ def get_user(telegram_id: str):
     finally:
         conn.close()
 
+
+def set_user_blocked(telegram_id: str, blocked: bool = True) -> bool:
+    """
+    Set the blocked status for a user
+    """
+    conn, db_type = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if user exists first
+        if not user_exists(telegram_id):
+            print(f"User {telegram_id} not found, cannot mark as blocked")
+            return False
+            
+        block_val = blocked
+        if db_type == 'sqlite':
+            block_val = 1 if blocked else 0
+            
+        print(f"Marking user {telegram_id} as blocked={blocked}...")
+        
+        if db_type == 'postgres':
+            cursor.execute("UPDATE users SET is_blocked = %s WHERE telegram_id = %s", (block_val, telegram_id))
+        else:
+            cursor.execute("UPDATE users SET is_blocked = ? WHERE telegram_id = ?", (block_val, telegram_id))
+            
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error setting user blocked status: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()

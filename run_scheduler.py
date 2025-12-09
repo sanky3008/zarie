@@ -26,7 +26,8 @@ load_dotenv()
 
 async def send_message(user_id: str, message: str):
     """Send a message to a user via their preferred platform (Telegram or Slack)"""
-    from user_manager import get_user
+    from user_manager import get_user, set_user_blocked
+    from event_manager.time_event_manager import disable_all_user_events
     
     user = get_user(user_id)
     platform = user.get('platform', 'telegram') if user else 'telegram'
@@ -57,8 +58,17 @@ async def send_message(user_id: str, message: str):
 
         try:
             from slack_sdk.web.async_client import AsyncWebClient
+            from slack_sdk.errors import SlackApiError
             client = AsyncWebClient(token=slack_token)
             await client.chat_postMessage(channel=user_id, text=message)
+        except SlackApiError as e:
+            error_msg = str(e)
+            if "account_inactive" in error_msg or "channel_not_found" in error_msg:
+                 print(f"⚠️ User {user_id} seems to have blocked/removed the bot (Slack error: {e.response['error']}). Disabling events.")
+                 set_user_blocked(user_id, True)
+                 disable_all_user_events(user_id)
+            else:
+                print(f"Error sending Slack message to {user_id}: {e}")
         except Exception as e:
             print(f"Error sending Slack message to {user_id}: {e}")
             
@@ -73,7 +83,16 @@ async def send_message(user_id: str, message: str):
             bot = Bot(token=token)
             await bot.send_message(chat_id=user_id, text=message)
         except Exception as e:
-            print(f"Error sending Telegram message to {user_id}: {e}")
+            # Handle blocked user
+            # telegram.error.Forbidden is the specific error, but we catch generic Exception to be safe
+            # and check the string content as we didn't import the specific error class at top level
+            error_str = str(e)
+            if "Forbidden" in error_str or "bot was blocked" in error_str or "user is deactivated" in error_str:
+                print(f"⚠️ User {user_id} has blocked the bot. Disabling events.")
+                set_user_blocked(user_id, True)
+                disable_all_user_events(user_id)
+            else:
+                print(f"Error sending Telegram message to {user_id}: {e}")
 
 async def process_event(event, worker_agent, donna):
     """Process a single time event with timeout"""

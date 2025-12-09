@@ -417,3 +417,34 @@ def update_event_status(event_id, status):
     finally:
         return_db_connection(conn, db_type)
 
+
+def disable_all_user_events(user_id):
+    """Disable ALL events for a specific user (e.g. when they block the bot)"""
+    conn, db_type = get_db_connection()
+    
+    try:
+        cursor = conn.cursor()
+        print(f"Disabling ALL events for user {user_id}...")
+        
+        if db_type == 'postgres':
+            cursor.execute("""
+                UPDATE time_events 
+                SET status = 'DISABLED' 
+                WHERE user_id = %s AND status = 'ACTIVE'
+            """, (user_id,))
+        else:
+            cursor.execute("""
+                UPDATE time_events 
+                SET status = 'DISABLED' 
+                WHERE user_id = ? AND status = 'ACTIVE'
+            """, (user_id,))
+        
+        count = cursor.rowcount
+        conn.commit()
+        print(f"  ✓ Disabled {count} active events for user {user_id}")
+        return count
+    except Exception as e:
+        print(f"  ✗ Error disabling events for user {user_id}: {e}")
+        return 0
+    finally:
+        return_db_connection(conn, db_type)
