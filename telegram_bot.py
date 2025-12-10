@@ -84,6 +84,9 @@ class TelegramBot:
             ):
                 # Send each chunk as a separate message
                 if chunk.strip():
+                    if "No_Response_Needed" in chunk:
+                        has_response = True
+                        continue
                     await update.message.reply_text(chunk)
                     has_response = True
             

@@ -210,6 +210,9 @@ class SlackBot:
                 user_timezone
             ):
                 if chunk.strip():
+                    if "No_Response_Needed" in chunk:
+                        has_response = True
+                        continue
                     await client.chat_postMessage(channel=channel, text=chunk)
                     has_response = True
             
