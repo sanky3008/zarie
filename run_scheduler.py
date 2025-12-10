@@ -112,6 +112,7 @@ async def process_event(event, worker_agent, donna):
             # context
             from dateutil.parser import parse
             from zoneinfo import ZoneInfo
+            from user_manager import get_user
             
             # Fetch user timezone
             user_data = get_user(user_id)

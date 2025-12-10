@@ -89,7 +89,13 @@ async def test_timezone_logic():
         print(f"Stored UTC Timestamp: {stored_utc}")
         print(f"Expected behavior: This UTC time should be approx 2 mins from now (real-world time), regardless of the user's virtual timezone being Tokyo.")
     else:
-        print("❌ Reminder NOT found in DB.")
+        print("❌ Reminder 'Check Timezone' NOT found in DB.")
+        print("Dumping all events for this user to debug:")
+        cursor.execute("SELECT reminder_name, next_trigger_timestamp FROM time_events WHERE user_id = ?", (test_user_id,))
+        rows = cursor.fetchall()
+        for r in rows:
+            print(f" - Found: Name='{r[0]}', Time='{r[1]}'")
+            
     conn.close()
 
 if __name__ == "__main__":
