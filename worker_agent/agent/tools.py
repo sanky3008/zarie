@@ -201,7 +201,7 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
         return_db_connection(conn, db_type)
 
 
-def delete_time_event(agent_name: str, user_id: str, reminder_name: str):
+def delete_time_event(agent_name: str, user_id: str, reminder_name: str, user_timezone: str = None):
     """
     Delete (disable) a time event/reminder.
     
