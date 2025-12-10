@@ -127,7 +127,7 @@ class Agent:
                 return "MCP client not available"
         return mcp_tool_wrapper
 
-    async def invoke(self, user_id, message, medium, timestamp=None):
+    async def invoke(self, user_id, message, medium, timestamp=None, user_timezone='Asia/Kolkata'):
         """Invoke the agent with a user message and medium - streaming generator."""
         # Ensure tools are initialized
         await self._ensure_tools_initialized()
@@ -136,32 +136,36 @@ class Agent:
         timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
         # Create and store user message
-        user_message = self._create_user_message(message, medium, timestamp)
+        user_message = self._create_user_message(message, medium, timestamp, user_timezone)
         self.state.add_context(user_id, user_message)
         
         # Prepare messages for LLM
-        messages = await self._prepare_messages(user_id)
+        messages = await self._prepare_messages(user_id, user_timezone)
         
         # Stream responses from ReAct loop
         import asyncio
-        async for chunk in self._react_loop_streaming(messages, user_id):
+        async for chunk in self._react_loop_streaming(messages, user_id, user_timezone):
             yield chunk
             await asyncio.sleep(0.5)  # 500ms delay between chunks for natural pacing
     
-    def _create_user_message(self, message, medium, timestamp):
+    def _create_user_message(self, message, medium, timestamp, user_timezone):
         """Create a formatted user message with date, time, and medium."""
-        # Convert to IST (Indian Standard Time)
-        ist_timezone = ZoneInfo("Asia/Kolkata")
+        # Convert to User Timezone
+        try:
+            tz = ZoneInfo(user_timezone)
+        except Exception:
+            tz = ZoneInfo("Asia/Kolkata")
+            
         if timestamp.tzinfo is None:
             # If timestamp is naive, assume it's UTC
             timestamp = timestamp.replace(tzinfo=ZoneInfo("UTC"))
-        ist_timestamp = timestamp.astimezone(ist_timezone)
+        local_timestamp = timestamp.astimezone(tz)
         
         # Get day and date components
-        day_name = ist_timestamp.strftime("%A")
-        day = ist_timestamp.day
-        month = ist_timestamp.strftime("%b")
-        year = ist_timestamp.year
+        day_name = local_timestamp.strftime("%A")
+        day = local_timestamp.day
+        month = local_timestamp.strftime("%b")
+        year = local_timestamp.year
         
         # Get proper ordinal suffix
         if 10 <= day % 100 <= 20:
@@ -170,14 +174,14 @@ class Agent:
             suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
         
         date_str = f"{day_name}, {day}{suffix} {month} {year}"
-        time_str = ist_timestamp.strftime("%H:%M")
+        time_str = local_timestamp.strftime("%H:%M")
         
         return {
             "role": "user",
-            "content": f"Date: {date_str}\nTime: {time_str}\nFROM: {medium}\nMessage: {message}"
+            "content": f"Date: {date_str}\nTime: {time_str}\nTimezone: {user_timezone}\nFROM: {medium}\nMessage: {message}"
         }
     
-    async def _prepare_messages(self, user_id):
+    async def _prepare_messages(self, user_id, user_timezone='Asia/Kolkata'):
         """Prepare messages array for LLM from context."""
         # Get context from state - it's already in LiteLLM format!
         context_blob = self.state.get_context(user_id)
@@ -222,7 +226,7 @@ class Agent:
             system_prompt += f"\n\n## User Context Summary (PERSONALIZATION REFERENCE)\n<conversation_summary>\n{running_summary}\n</conversation_summary>"
         
         # Format conversation history for REMAINING old messages (if any)
-        formatted_history = self._format_conversation_history(old_messages)
+        formatted_history = self._format_conversation_history(old_messages, user_timezone)
         
         # Add conversation history to system prompt 
         if formatted_history:
@@ -242,10 +246,13 @@ class Agent:
         
         return final_messages
 
-    def _format_conversation_history(self, messages):
+    def _format_conversation_history(self, messages, user_timezone='Asia/Kolkata'):
         """Format conversation history into a structured string."""
         formatted_lines = []
-        ist_timezone = ZoneInfo("Asia/Kolkata")
+        try:
+            target_tz = ZoneInfo(user_timezone)
+        except Exception:
+            target_tz = ZoneInfo("Asia/Kolkata")
         
         for msg in messages:
             role = msg.get("role")
@@ -263,11 +270,11 @@ class Agent:
                 else:
                     dt = created_at
                 
-                # Convert to IST
+                # Convert to Target Timezone
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-                ist_dt = dt.astimezone(ist_timezone)
-                timestamp_str = ist_dt.strftime("%b %d, %I:%M %p")
+                local_dt = dt.astimezone(target_tz)
+                timestamp_str = local_dt.strftime("%b %d, %I:%M %p")
             
             if role == "user":
                 # Parse user message content
@@ -322,7 +329,7 @@ class Agent:
         
         return "\n".join(formatted_lines)
     
-    async def _react_loop_streaming(self, messages, user_id):
+    async def _react_loop_streaming(self, messages, user_id, user_timezone='Asia/Kolkata'):
         """Run ReAct loop, yielding text chunks on \\n\\n boundaries and executing tool calls."""
         while True:
             # Call LLM with tools using async completion
@@ -363,9 +370,9 @@ class Agent:
                     function_name = tool_call.function.name
                     function_args = json.loads(tool_call.function.arguments)
                     
-                    # Inject user_id for tools that need it
                     if function_name == "invoke_worker_agent":
                         function_args["user_id"] = user_id
+                        function_args["user_timezone"] = user_timezone
                     elif function_name == "send_message_to_user":
                         function_args["user_id"] = user_id
                     

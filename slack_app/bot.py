@@ -129,12 +129,15 @@ class SlackBot:
                         should_update = False
                 
                 if should_update:
+                    tz = user_data.get("tz")
+
                     create_or_update_user(
                         telegram_id=user_id,
                         first_name=real_name,
                         username=username,
                         platform='slack',
-                        team_id=team_id
+                        team_id=team_id,
+                        timezone=tz
                     )
                     
             except Exception as e:
@@ -190,9 +193,12 @@ class SlackBot:
         
         try:
             # Calculate timestamp
+            # Calculate timestamp
             message_timestamp_utc = datetime.fromtimestamp(float(ts), tz=timezone.utc)
-            IST = timezone(timedelta(hours=5, minutes=30))
-            message_timestamp_ist = message_timestamp_utc.astimezone(IST)
+            
+            # Fetch user for timezone
+            user = get_user(user_id)
+            user_timezone = user.get('timezone', 'Asia/Kolkata') if user else 'Asia/Kolkata'
             
             has_response = False
             
@@ -200,7 +206,8 @@ class SlackBot:
                 user_id,
                 combined_text,
                 "End-User via Slack",
-                message_timestamp_ist
+                message_timestamp_utc,
+                user_timezone
             ):
                 if chunk.strip():
                     await client.chat_postMessage(channel=channel, text=chunk)

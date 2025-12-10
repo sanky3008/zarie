@@ -44,6 +44,32 @@ def parse_ist_time(time_str):
         dt = IST.localize(dt)
     return dt
 
+def parse_user_time(time_str, user_timezone='Asia/Kolkata'):
+    """
+    Parse a time string and return as timezone-aware datetime in the user's timezone.
+    
+    Args:
+        time_str (str): The time string to parse (e.g., "2025-10-28T14:30:00")
+        user_timezone (str): The user's timezone string (e.g., "America/New_York")
+    
+    Returns:
+        datetime: Timezone-aware datetime
+    """
+    try:
+        user_tz = pytz.timezone(user_timezone)
+    except pytz.UnknownTimeZoneError:
+        print(f"Warning: Unknown timezone '{user_timezone}', defaulting to IST")
+        user_tz = IST
+        
+    dt = parse(time_str)
+    if dt.tzinfo is None:
+        # If no timezone info, treat as user's timezone
+        dt = user_tz.localize(dt)
+    else:
+        # If it has timezone info, convert to user's timezone
+        dt = dt.astimezone(user_tz)
+    return dt
+
 def _initialize_pool():
     """Initialize the connection pool for event manager"""
     global _pool, _db_type, _sqlite_conn
@@ -63,7 +89,7 @@ def _initialize_pool():
         # Use SQLite for local development
         _db_type = 'sqlite'
         db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'chats.db')
-        print(f"DEBUG: Connecting to SQLite DB at: {os.path.abspath(db_path)}")
+        # print(f"DEBUG: Connecting to SQLite DB at: {os.path.abspath(db_path)}")
         _sqlite_conn = sqlite3.connect(db_path)
 
 def get_db_connection():

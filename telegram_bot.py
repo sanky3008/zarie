@@ -66,11 +66,12 @@ class TelegramBot:
         await update.message.chat.send_action(action="typing")
         
         try:
-            # Get the message timestamp and convert from UTC to IST
-            # We use the timestamp of the last message (current update)
+            # Get the message timestamp (already UTC in Telegram)
             message_timestamp_utc = update.message.date
-            IST = timezone(timedelta(hours=5, minutes=30))
-            message_timestamp_ist = message_timestamp_utc.astimezone(IST)
+            
+            # Fetch user for timezone
+            user = get_user(user_id)
+            user_timezone = user.get('timezone', 'Asia/Kolkata') if user else 'Asia/Kolkata'
             
             # Stream response chunks from agent
             has_response = False
@@ -78,7 +79,8 @@ class TelegramBot:
                 user_id, 
                 combined_message_text, 
                 "End-User via Telegram",
-                message_timestamp_ist
+                message_timestamp_utc,
+                user_timezone
             ):
                 # Send each chunk as a separate message
                 if chunk.strip():

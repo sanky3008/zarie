@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime
 
 # Import timezone helpers
-from event_manager.time_event_manager import parse_ist_time, ist_to_utc
+from event_manager.time_event_manager import parse_user_time
 
 # Import shared pool from directory
 from worker_agent.directory.directory import get_shared_pool
@@ -96,7 +96,8 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                   is_recurring: bool, freq: str = None, interval: int = None, 
                   until: str = None, count: int = None, byweekday: str = None,
                   bymonthday: int = None, bymonth: int = None,
-                  reminder_name: str = None, message: str = ""):
+                  reminder_name: str = None, message: str = "",
+                  user_timezone: str = 'Asia/Kolkata'):
     """
     Set a time event/reminder for the worker agent.
     
@@ -141,9 +142,15 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
                 rule_parts.append(f"BYMONTH={bymonth}")
             recurrence_rule = ";".join(rule_parts) if rule_parts else None
         
-        # Convert timestamp from IST to UTC for storage
-        timestamp_ist = parse_ist_time(next_trigger_timestamp)
-        timestamp_utc = ist_to_utc(timestamp_ist)
+        # Convert timestamp from User Timezone to UTC for storage
+        timestamp_user = parse_user_time(next_trigger_timestamp, user_timezone)
+        # Convert to UTC
+        from zoneinfo import ZoneInfo
+        if timestamp_user.tzinfo is None:
+             # This shouldn't happen with parse_user_time but safe guard
+             timestamp_user = timestamp_user.replace(tzinfo=ZoneInfo("UTC")) # Fallback
+        
+        timestamp_utc = timestamp_user.astimezone(ZoneInfo("UTC"))
         next_trigger_timestamp_utc = timestamp_utc.isoformat()
 
         # If frequency is MINUTELY, limit count to a maximum of 20

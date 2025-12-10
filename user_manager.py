@@ -10,22 +10,59 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _migrate_db(conn, db_type):
+    """Ensure the users table has the timezone column."""
+    cursor = conn.cursor()
+    try:
+        # Check if timezone column exists
+        if db_type == 'postgres':
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='users' AND column_name='timezone';
+            """)
+            if not cursor.fetchone():
+                print("Migrating DB: Adding timezone column (Postgres)...")
+                cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'Asia/Kolkata';")
+                conn.commit()
+        else:
+            # SQLite
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if 'timezone' not in columns:
+                print("Migrating DB: Adding timezone column (SQLite)...")
+                cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'Asia/Kolkata'")
+                conn.commit()
+    except Exception as e:
+        print(f"Migration warning: {e}")
+        # Don't raise, might be concurrent access or already exists
+        conn.rollback()
+
+
 def get_db_connection():
     """Get database connection - respects ENV variable for safety"""
     env = os.getenv('ENV', 'LOCAL').upper()
     database_url = os.getenv('DATABASE_URL')
     
+    conn = None
+    db_type = 'sqlite'
+
     # Only use postgres if ENV=PROD and DATABASE_URL is set
     if env == 'PROD' and database_url:
         import psycopg2
         conn = psycopg2.connect(database_url)
-        return conn, 'postgres'
+        db_type = 'postgres'
     else:
         # Use SQLite for local development
         # From user_manager.py (alpha-v0.1/) -> go up 2 levels to Donna/ -> chats.db
         db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'chats.db')
         conn = sqlite3.connect(db_path)
-        return conn, 'sqlite'
+        db_type = 'sqlite'
+    
+    # Run simple migration check
+    _migrate_db(conn, db_type)
+    
+    return conn, db_type
 
 
 def user_exists(telegram_id: str) -> bool:
@@ -44,7 +81,7 @@ def user_exists(telegram_id: str) -> bool:
         conn.close()
 
 
-def create_or_update_user(telegram_id: str, first_name: str, last_name: str = None, username: str = None, platform: str = 'telegram', team_id: str = None) -> bool:
+def create_or_update_user(telegram_id: str, first_name: str, last_name: str = None, username: str = None, platform: str = 'telegram', team_id: str = None, timezone: str = None) -> bool:
     """
     Create a new user or update existing user in the database
     Returns True if successful, False otherwise
@@ -60,25 +97,42 @@ def create_or_update_user(telegram_id: str, first_name: str, last_name: str = No
     try:
         if db_type == 'postgres':
             # Use INSERT ... ON CONFLICT for PostgreSQL (upsert)
-            cursor.execute("""
-                INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id)
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE, %s, %s)
-                ON CONFLICT (telegram_id) DO UPDATE
-                SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE, platform = EXCLUDED.platform, team_id = EXCLUDED.team_id
-            """, (telegram_id, name, username, platform, team_id))
+            if timezone:
+                 cursor.execute("""
+                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE, %s, %s, %s)
+                    ON CONFLICT (telegram_id) DO UPDATE
+                    SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE, platform = EXCLUDED.platform, team_id = EXCLUDED.team_id, timezone = EXCLUDED.timezone
+                """, (telegram_id, name, username, platform, team_id, timezone))
+            else:
+                # Don't overwrite timezone if not provided
+                 cursor.execute("""
+                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, TRUE, %s, %s)
+                    ON CONFLICT (telegram_id) DO UPDATE
+                    SET name = EXCLUDED.name, telegram_username = EXCLUDED.telegram_username, has_zarie = TRUE, platform = EXCLUDED.platform, team_id = EXCLUDED.team_id
+                """, (telegram_id, name, username, platform, team_id))
+
         else:
             # For SQLite, check if user exists first to preserve created_at and update has_zarie
             if user_exists(telegram_id):
-                cursor.execute("""
-                    UPDATE users
-                    SET name = ?, telegram_username = ?, has_zarie = TRUE, platform = ?, team_id = ?
-                    WHERE telegram_id = ?
-                """, (name, username, platform, team_id, telegram_id))
+                if timezone:
+                    cursor.execute("""
+                        UPDATE users
+                        SET name = ?, telegram_username = ?, has_zarie = TRUE, platform = ?, team_id = ?, timezone = ?
+                        WHERE telegram_id = ?
+                    """, (name, username, platform, team_id, timezone, telegram_id))
+                else:
+                    cursor.execute("""
+                        UPDATE users
+                        SET name = ?, telegram_username = ?, has_zarie = TRUE, platform = ?, team_id = ?
+                        WHERE telegram_id = ?
+                    """, (name, username, platform, team_id, telegram_id))
             else:
                 cursor.execute("""
-                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, TRUE, ?, ?)
-                """, (telegram_id, name, username, platform, team_id))
+                    INSERT INTO users (telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, TRUE, ?, ?, ?)
+                """, (telegram_id, name, username, platform, team_id, timezone or 'Asia/Kolkata'))
         
         conn.commit()
         return True
@@ -96,10 +150,12 @@ def get_user(telegram_id: str):
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id FROM users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone FROM users WHERE telegram_id = ?", (telegram_id,))
         result = cursor.fetchone()
         
         if result:
+            timezone_val = result[8] if len(result) > 8 and result[8] else 'Asia/Kolkata'
+            
             if db_type == 'postgres':
                 return {
                     'id': result[0],
@@ -109,7 +165,8 @@ def get_user(telegram_id: str):
                     'created_at': result[4],
                     'has_zarie': result[5],
                     'platform': result[6],
-                    'team_id': result[7]
+                    'team_id': result[7],
+                    'timezone': timezone_val
                 }
             else:
                 return {
@@ -120,7 +177,8 @@ def get_user(telegram_id: str):
                     'created_at': result[4],
                     'has_zarie': bool(result[5]), # SQLite stores booleans as 0/1
                     'platform': result[6],
-                    'team_id': result[7]
+                    'team_id': result[7],
+                    'timezone': timezone_val
                 }
         return None
     except Exception as e:

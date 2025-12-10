@@ -109,11 +109,26 @@ async def process_event(event, worker_agent, donna):
         
         # Add timeout to prevent hanging (180 seconds max per event)
         async def process_single_event():
-            # Get trigger timestamp and convert to IST for context
+            # context
             from dateutil.parser import parse
+            from zoneinfo import ZoneInfo
+            
+            # Fetch user timezone
+            user_data = get_user(user_id)
+            user_timezone = user_data.get('timezone', 'Asia/Kolkata') if user_data else 'Asia/Kolkata'
+            
             trigger_time_utc = parse(all_reminders[0]['next_trigger_timestamp']) if isinstance(all_reminders[0]['next_trigger_timestamp'], str) else all_reminders[0]['next_trigger_timestamp']
-            trigger_time_ist = utc_to_ist(trigger_time_utc)
-            current_time_str = trigger_time_ist.strftime("%A, %B %d, %Y at %I:%M %p IST")
+            
+            # Convert to user timezone
+            if trigger_time_utc.tzinfo is None:
+                 trigger_time_utc = trigger_time_utc.replace(tzinfo=ZoneInfo("UTC"))
+            
+            try:
+                trigger_time_local = trigger_time_utc.astimezone(ZoneInfo(user_timezone))
+            except Exception:
+                trigger_time_local = trigger_time_utc.astimezone(ZoneInfo("Asia/Kolkata")) # Fallback
+                
+            current_time_str = trigger_time_local.strftime(f"%A, %B %d, %Y at %I:%M %p {user_timezone}")
             
             # Build formatted reminder message
             reminder_text = "Reminder Triggered for the following time_events. Please find below the corresponding messages.\n\n"
@@ -129,7 +144,8 @@ async def process_event(event, worker_agent, donna):
                 agent_name,
                 user_id,
                 reminder_text,
-                medium
+                medium,
+                user_timezone=user_timezone
             )
 
             print(f"Worker response: {worker_response}")
@@ -165,7 +181,9 @@ async def process_event(event, worker_agent, donna):
             async for chunk in donna.invoke(
                 user_id,
                 donna_message,
-                f"{agent_name}"
+                f"{agent_name}",
+                trigger_time_utc,
+                user_timezone
             ):
                 accumulated_response += chunk
                 # Send each chunk to user immediately

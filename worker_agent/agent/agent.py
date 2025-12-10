@@ -168,7 +168,7 @@ class WorkerAgent:
                 return "MCP client not available"
         return mcp_tool_wrapper
 
-    async def invoke(self, agent_name, user_id, message, medium="", timestamp=None):
+    async def invoke(self, agent_name, user_id, message, medium="", timestamp=None, user_timezone='Asia/Kolkata'):
         """Invoke the worker agent with a message."""
         # Ensure tools are initialized
         await self._ensure_tools_initialized()
@@ -181,33 +181,37 @@ class WorkerAgent:
         timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
         # Create and store user message
-        user_message = self._create_user_message(message, medium, timestamp)
+        user_message = self._create_user_message(message, medium, timestamp, user_timezone)
         self.directory.add_context(agent_name, user_id, user_message)
         
         # Prepare messages for LLM
         messages = await self._prepare_messages(agent_name, user_id)
         
         # Run ReAct loop and get final response
-        assistant_message = await self._react_loop(messages, agent_name, user_id)
+        assistant_message = await self._react_loop(messages, agent_name, user_id, user_timezone)
         
         # Store and return assistant response
         self.directory.add_context(agent_name, user_id, assistant_message)
         return assistant_message
     
-    def _create_user_message(self, message, medium, timestamp):
+    def _create_user_message(self, message, medium, timestamp, user_timezone):
         """Create a formatted user message with date, time, and medium."""
-        # Convert to IST (Indian Standard Time)
-        ist_timezone = ZoneInfo("Asia/Kolkata")
+        # Convert to User Timezone
+        try:
+            tz = ZoneInfo(user_timezone)
+        except Exception:
+            tz = ZoneInfo("Asia/Kolkata")
+            
         if timestamp.tzinfo is None:
             # If timestamp is naive, assume it's UTC
             timestamp = timestamp.replace(tzinfo=ZoneInfo("UTC"))
-        ist_timestamp = timestamp.astimezone(ist_timezone)
+        local_timestamp = timestamp.astimezone(tz)
         
         # Get day and date components
-        day_name = ist_timestamp.strftime("%A")
-        day = ist_timestamp.day
-        month = ist_timestamp.strftime("%b")
-        year = ist_timestamp.year
+        day_name = local_timestamp.strftime("%A")
+        day = local_timestamp.day
+        month = local_timestamp.strftime("%b")
+        year = local_timestamp.year
         
         # Get proper ordinal suffix
         if 10 <= day % 100 <= 20:
@@ -216,11 +220,11 @@ class WorkerAgent:
             suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
         
         date_str = f"{day_name}, {day}{suffix} {month} {year}"
-        time_str = ist_timestamp.strftime("%H:%M")
+        time_str = local_timestamp.strftime("%H:%M")
         
         return {
             "role": "user",
-            "content": f"Date: {date_str}\nTime: {time_str}\nFROM: {medium}\nMessage: {message}"
+            "content": f"Date: {date_str}\nTime: {time_str}\nTimezone: {user_timezone}\nFROM: {medium}\nMessage: {message}"
         }
     
     async def _prepare_messages(self, agent_name, user_id):
@@ -283,7 +287,7 @@ class WorkerAgent:
         
         return final_messages
     
-    async def _react_loop(self, messages, agent_name, user_id):
+    async def _react_loop(self, messages, agent_name, user_id, user_timezone='Asia/Kolkata'):
         """Run ReAct loop until we get a normal response (no tool calls)."""
         while True:
             # Call LLM with tools using async completion
@@ -328,6 +332,7 @@ class WorkerAgent:
                     if function_name in ["set_time_event", "delete_time_event"]:
                         function_args["agent_name"] = agent_name
                         function_args["user_id"] = user_id
+                        function_args["user_timezone"] = user_timezone
                     
                     # Execute the tool function (handle both sync and async)
                     if function_name in self.tool_functions:
