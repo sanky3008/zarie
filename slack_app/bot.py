@@ -120,8 +120,9 @@ class SlackBot:
         if bot_user_id and f"<@{bot_user_id}>" in text:
             return True
         # Also check for "zarie" case-insensitive
-        if re.search(r'\bzarie\b', text, re.IGNORECASE):
-            return True
+        # REMOVED: strict tagging required for MPIM as per user request
+        # if re.search(r'\bzarie\b', text, re.IGNORECASE):
+        #    return True
         return False
 
     def _normalize_bot_mention(self, text: str, bot_user_id: str = None) -> str:
@@ -290,11 +291,43 @@ class SlackBot:
         # Normalize text and strip bot mention BEFORE storing
         clean_text = self._normalize_bot_mention(text, bot_user_id)
         
+        # --- NEW: Format message before storing (bake in metadata) ---
+        from zoneinfo import ZoneInfo
+        
+        # Get author's timezone
+        author_user = get_user(author_id)
+        author_tz_str = author_user.get('timezone', 'Asia/Kolkata') if author_user else 'Asia/Kolkata'
+        try:
+            author_tz = ZoneInfo(author_tz_str)
+        except:
+            author_tz = ZoneInfo('Asia/Kolkata')
+            author_tz_str = 'Asia/Kolkata'
+            
+        # Create timestamp
+        msg_ts = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+        local_dt = msg_ts.astimezone(author_tz)
+        
+        day_name = local_dt.strftime("%A")
+        day = local_dt.day
+        month = local_dt.strftime("%b")
+        year = local_dt.year
+        
+        if 10 <= day % 100 <= 20:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        
+        date_str = f"{day_name}, {day}{suffix} {month} {year}"
+        time_str = local_dt.strftime("%H:%M")
+        
+        # Format: Date/Time headers + FROM header + Message
+        formatted_content = f"Date: {date_str}\nTime: {time_str}\nTimezone: {author_tz_str}\nFROM: End-User via Slack MPIM\nAuthor: {author_name} | <@{author_id}>\nMessage: {clean_text}"
+        
         # Store message in chats_context (always, even if not mentioning bot)
         store_mpim_message(
             user_id=channel_id,
             role="user",
-            content=clean_text, # Store normalized text
+            content=formatted_content, # Store FORMATTED content
             author_id=author_id,
             author_name=author_name,
             thread_ts=thread_ts,
@@ -310,7 +343,15 @@ class SlackBot:
         
         if buffer_key in self.mpim_message_buffers:
             self.mpim_message_buffers[buffer_key]['task'].cancel()
-            self.mpim_message_buffers[buffer_key]['messages'].append(clean_text)
+            self.mpim_message_buffers[buffer_key]['messages'].append(clean_text) # Still buffer raw text for LLM invocation? 
+            # WAIT: Agent invocation also bakes it in usually?
+            # Actually Agent.invoke takes 'message' as raw text.
+            # But Agent._current_is_mpim is True.
+            # The agent.py logic for MPIM context building USES stored messages.
+            # So if we store formatted, we must ensure the `mpim_state` handles it.
+            # AND the `invoke` call should probably still take raw text or handle it.
+            # Let's keep buffering `clean_text` for the immediate turn invocation
+            # because `invoke` takes raw text in `combined_text`.
         else:
             self.mpim_message_buffers[buffer_key] = {
                 'messages': [clean_text],

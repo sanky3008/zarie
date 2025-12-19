@@ -303,11 +303,16 @@ def format_mpim_messages_for_llm(messages: list, user_timezone: str = 'Asia/Kolk
             timestamp_str = f"Date: {date_str}\nTime: {time_str}\nTimezone: {user_timezone}\n"
         
         if role == 'user':
-            # Format with author for MPIM
-            if author_name:
-                formatted_content = f"{timestamp_str}FROM: End-User via Slack MPIM\nAuthor: {author_name}\nMessage: {content}"
+            # Check if message is already formatted (Baked-in metadata)
+            if content and content.strip().startswith("Date:"):
+                # Already formatted, use as is
+                formatted_content = content
             else:
-                formatted_content = f"{timestamp_str}FROM: End-User via Slack MPIM\nMessage: {content}"
+                # LEGACY: Format with author for MPIM dynamically
+                if author_name:
+                    formatted_content = f"{timestamp_str}FROM: End-User via Slack MPIM\nAuthor: {author_name}\nMessage: {content}"
+                else:
+                    formatted_content = f"{timestamp_str}FROM: End-User via Slack MPIM\nMessage: {content}"
             
             formatted.append({
                 "role": "user",

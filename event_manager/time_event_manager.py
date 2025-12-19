@@ -230,6 +230,19 @@ def update_next_trigger(event_id, recurrence_rule):
             return False
         
         current_trigger = row[0] if db_type == 'postgres' else row[0]
+        
+        # FIX: Check if the event has been disabled meanwhile (e.g. by the worker)
+        # We need to fetch the status too
+        if db_type == 'postgres':
+            cursor.execute("SELECT status FROM time_events WHERE id = %s", (event_id,))
+        else:
+            cursor.execute("SELECT status FROM time_events WHERE id = ?", (event_id,))
+            
+        status_row = cursor.fetchone()
+        if status_row and status_row[0] == 'DISABLED':
+            print(f"  Event {event_id} is DISABLED, stopping recurrences.")
+            return False
+
         dtstart = parse(current_trigger) if isinstance(current_trigger, str) else current_trigger
         
         # Ensure dtstart is timezone-aware (UTC)
