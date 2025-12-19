@@ -308,7 +308,7 @@ class State:
                 
                 return json.dumps(messages) if messages else None
     
-    def add_context(self, user_id, response_or_responses, thread_ts=None):
+    def add_context(self, user_id, response_or_responses, thread_ts=None, slack_ts=None, author_id=None, author_name=None):
         """Add context for a given user_id to chats_context table. Can handle single response or list of responses."""
         if isinstance(response_or_responses, list):
             responses = response_or_responses
@@ -347,9 +347,11 @@ class State:
                         
                         cursor.execute("""
                             INSERT INTO chats_context 
-                            (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name, thread_ts)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, thread_ts))
+                            (user_id, message_sequence, role, content, tool_calls, tool_call_id, 
+                             tool_name, thread_ts, slack_ts, author_id, author_name)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, 
+                              thread_ts, slack_ts, author_id, author_name))
                 
                 conn.commit()
             finally:
@@ -385,10 +387,207 @@ class State:
                     
                     self.cursor.execute("""
                         INSERT INTO chats_context 
-                        (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name, thread_ts)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, thread_ts))
+                        (user_id, message_sequence, role, content, tool_calls, tool_call_id, 
+                         tool_name, thread_ts, slack_ts, author_id, author_name)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, 
+                          thread_ts, slack_ts, author_id, author_name))
                 
+                self.conn.commit()
+
+    def get_context(self, user_id):
+        """Legacy wrapper for get_messages to maintain backward compatibility."""
+        messages = self.get_messages(user_id, exclude_summarised=True)
+        return json.dumps(messages) if messages else None
+
+    def get_messages(self, user_id, thread_ts=None, limit=None, exclude_summarised=False):
+        """
+        Flexible message retrieval for both DMs and MPIMs/Threads.
+        
+        Args:
+            user_id: The ID of the user or channel.
+            thread_ts: If set, fetches messages for a specific thread (including the root parent).
+            limit: Max number of messages to return.
+            exclude_summarised: If True, only returns unsummarised messages.
+        """
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
+                    query = """
+                        SELECT role, content, tool_calls, tool_call_id, tool_name, 
+                               created_at, message_sequence, author_id, author_name, slack_ts, thread_ts
+                        FROM chats_context 
+                        WHERE user_id = %s
+                    """
+                    params = [user_id]
+                    
+                    if exclude_summarised:
+                        query += " AND (is_summarised IS FALSE OR is_summarised IS NULL)"
+                    
+                    if thread_ts:
+                        # Fetch thread replies + the root message (slack_ts = thread_ts)
+                        query += " AND (thread_ts = %s OR slack_ts = %s)"
+                        params.extend([thread_ts, thread_ts])
+                    else:
+                        # Fetch unrelated to threads OR root messages of threads?
+                        # Standard get_context behavior usually just fetches everything chronological
+                        # But for MPIM "Root Context" we specifically want thread_ts IS NULL
+                        # Let's keep it flexible: if thread_ts is explicitly None, maybe we don't filter?
+                        # Actually, to replicate get_root_messages behavior, we might need another flag.
+                        # But for standard Agent behavior (non-threaded), we usually ignore thread_ts column.
+                        pass
+
+                    query += " ORDER BY message_sequence ASC"
+                    
+                    if limit:
+                        query += " LIMIT %s"
+                        params.append(limit)
+                        
+                    cursor.execute(query, tuple(params))
+                    rows = cursor.fetchall()
+                    
+                    return self._process_rows(rows)
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                query = """
+                    SELECT role, content, tool_calls, tool_call_id, tool_name, 
+                           created_at, message_sequence, author_id, author_name, slack_ts, thread_ts
+                    FROM chats_context 
+                    WHERE user_id = ?
+                """
+                params = [user_id]
+                
+                if exclude_summarised:
+                    query += " AND (is_summarised = 0 OR is_summarised IS NULL)"
+                
+                if thread_ts:
+                    query += " AND (thread_ts = ? OR slack_ts = ?)"
+                    params.extend([thread_ts, thread_ts])
+                
+                query += " ORDER BY message_sequence ASC"
+                
+                if limit:
+                    query += " LIMIT ?"
+                    params.append(limit)
+                
+                self.cursor.execute(query, tuple(params))
+                rows = self.cursor.fetchall()
+                
+                # Convert tuple rows to dicts
+                columns = ['role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 
+                          'created_at', 'message_sequence', 'author_id', 'author_name', 'slack_ts', 'thread_ts']
+                dict_rows = [dict(zip(columns, row)) for row in rows]
+                
+                return self._process_rows(dict_rows)
+
+    def _process_rows(self, rows):
+        """Helper to process DB rows into message dicts."""
+        messages = []
+        for row in rows:
+            content = row['content']
+            tool_name = row['tool_name']
+            
+            # Truncate content for Brave Search tools
+            if tool_name in ['brave_web_search', 'brave_local_search', 'brave_news_search', 'brave_image_search', 'brave_video_search']:
+                if content and len(content) > 200:
+                    content = content[:200] + "...[TRUNCATED]"
+            
+            msg = {
+                "role": row['role'],
+                "content": content,
+                "created_at": row['created_at'].isoformat() if hasattr(row.get('created_at'), 'isoformat') else row.get('created_at'),
+                "message_sequence": row['message_sequence'],
+                "author_id": row.get('author_id'),
+                "author_name": row.get('author_name'),
+                "thread_ts": row.get('thread_ts'),
+                "slack_ts": row.get('slack_ts')
+            }
+            # Add tool_calls if present
+            if row['tool_calls']:
+                try:
+                    msg['tool_calls'] = json.loads(row['tool_calls'])
+                except:
+                    pass
+            # Add tool metadata for tool responses
+            if row['tool_call_id']:
+                msg['tool_call_id'] = row['tool_call_id']
+            if tool_name:
+                msg['tool_name'] = tool_name
+            messages.append(msg)
+        return messages
+
+    # --- Slack User Cache Methods (Moved from mpim_state) ---
+    def get_cached_slack_user(self, slack_user_id):
+        """Get cached Slack user display name."""
+        from datetime import datetime, timedelta
+        
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT display_name, real_name, updated_at
+                        FROM slack_users 
+                        WHERE slack_user_id = %s
+                    """, (slack_user_id,))
+                    row = cursor.fetchone()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("""
+                    SELECT display_name, real_name, updated_at
+                    FROM slack_users 
+                    WHERE slack_user_id = ?
+                """, (slack_user_id,))
+                tuple_row = self.cursor.fetchone()
+                row = {'display_name': tuple_row[0], 'real_name': tuple_row[1], 'updated_at': tuple_row[2]} if tuple_row else None
+
+        if row:
+            updated_at = row['updated_at']
+            # Normalize timestamp
+            if isinstance(updated_at, str):
+                try:
+                    updated_at = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                except:
+                    pass 
+            
+            # Check staleness
+            if isinstance(updated_at, datetime) and (datetime.now(updated_at.tzinfo) - updated_at) < timedelta(hours=24):
+                return row
+            elif not isinstance(updated_at, datetime):
+                 # Fallback if parsing failed but data exists
+                 return row
+                 
+        return None
+
+    def upsert_slack_user(self, slack_user_id, team_id, display_name=None, real_name=None):
+        """Insert or update Slack user in cache."""
+        if self.db_type == 'postgres':
+            conn = self.pool.getconn()
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO slack_users (slack_user_id, team_id, display_name, real_name, updated_at)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (slack_user_id) DO UPDATE
+                        SET display_name = EXCLUDED.display_name,
+                            real_name = EXCLUDED.real_name,
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (slack_user_id, team_id, display_name, real_name))
+                conn.commit()
+            finally:
+                self.pool.putconn(conn)
+        else:
+            with self.lock:
+                self.cursor.execute("""
+                    INSERT OR REPLACE INTO slack_users 
+                    (slack_user_id, team_id, display_name, real_name, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (slack_user_id, team_id, display_name, real_name))
                 self.conn.commit()
 
     def get_running_summary(self, user_id):
@@ -445,4 +644,5 @@ class State:
                     WHERE user_id = ? AND message_sequence <= ?
                 """, (user_id, max_sequence))
                 self.conn.commit()
+
 

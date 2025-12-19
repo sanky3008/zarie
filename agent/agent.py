@@ -128,7 +128,7 @@ class Agent:
         return mcp_tool_wrapper
 
     async def invoke(self, user_id, message, medium, timestamp=None, user_timezone='Asia/Kolkata',
-                     is_mpim=False, thread_ts=None, author_name=None, reply_ts=None):
+                     is_mpim=False, thread_ts=None, author_name=None, author_id=None, reply_ts=None):
         """Invoke the agent with a user message and medium - streaming generator.
         
         Args:
@@ -140,6 +140,7 @@ class Agent:
             is_mpim: True if this is a Multi-Party DM
             thread_ts: Thread timestamp if message is a reply (MPIM only, for context)
             author_name: Display name of message author (MPIM only)
+            author_id: Slack User ID of message author (MPIM only)
             reply_ts: Timestamp to reply to (MPIM only, for tools)
         """
         # Ensure tools are initialized
@@ -153,37 +154,28 @@ class Agent:
         self._current_thread_ts = thread_ts
         self._current_reply_ts = reply_ts
         
-        if is_mpim:
-            # MPIM: Use thread-aware context building
-            # Note: Message was already stored by bot.py via store_mpim_message
-            from agent.state.mpim_state import build_mpim_context
-            
-            # Get running summary
-            running_summary = self.state.get_running_summary(user_id)
-            
-            # Build context based on invocation location (root or thread)
-            context = await build_mpim_context(self.state, user_id, thread_ts, user_timezone, running_summary)
-            
-            # Get system prompt
-            system_prompt = get_system_prompt(user_id)
-            
-            # Append MPIM-specific context to system prompt
-            if context.get('system_context'):
-                system_prompt += context['system_context']
-            
-            final_messages = [{
-                "role": "system",
-                "content": system_prompt
-            }]
-            
-            # Add formatted messages from context
-            final_messages.extend(context.get('messages', []))
-            messages = final_messages
-        else:
-            # DM: Use existing logic
-            user_message = self._create_user_message(message, medium, timestamp, user_timezone)
-            self.state.add_context(user_id, user_message)
-            messages = await self._prepare_messages(user_id, user_timezone)
+        # 1. Create and Store User Message
+        user_message_obj = self._create_user_message(
+            message=message, 
+            medium=medium, 
+            timestamp=timestamp, 
+            user_timezone=user_timezone,
+            author_name=author_name if is_mpim else None,
+            author_id=author_id if is_mpim else None
+        )
+        
+        # For MPIM/Thread: we persist thread_ts
+        # For DM: thread_ts is None
+        self.state.add_context(
+            user_id, 
+            user_message_obj, 
+            thread_ts=thread_ts,
+            author_name=author_name if is_mpim else None,
+            author_id=author_id if is_mpim else None
+        )
+        
+        # 2. Prepare Context (Read from DB)
+        messages = await self._prepare_messages(user_id, user_timezone, thread_ts=thread_ts)
         
         # Stream responses from ReAct loop
         import asyncio
@@ -191,132 +183,108 @@ class Agent:
             yield chunk
             await asyncio.sleep(0.5)  # 500ms delay between chunks for natural pacing
     
-    async def _prepare_mpim_messages(self, user_id, thread_ts, user_timezone, author_name):
-        """Prepare messages for MPIM invocation with thread-aware context."""
-        from agent.state.mpim_state import build_mpim_context
-        from agent.prompt import get_system_prompt
-        
-        # Get running summary
-        running_summary = self.state.get_running_summary(user_id)
-        
-        # Build context based on invocation location (root or thread)
-        context = await build_mpim_context(self.state, user_id, thread_ts, user_timezone, running_summary)
-        
-        # Get system prompt
-        system_prompt = get_system_prompt(user_id)
-        
-        # Append MPIM-specific context to system prompt
-        if context.get('system_context'):
-            system_prompt += context['system_context']
-        
-        final_messages = [{
-            "role": "system",
-            "content": system_prompt
-        }]
-        
-        # Add formatted messages from context
-        final_messages.extend(context.get('messages', []))
-        
-        return final_messages
-    
-    def _create_user_message(self, message, medium, timestamp, user_timezone):
+    def _create_user_message(self, message, medium, timestamp, user_timezone, author_name=None, author_id=None):
         """Create a formatted user message with date, time, and medium."""
-        # Convert to User Timezone
-        try:
-            tz = ZoneInfo(user_timezone)
-        except Exception:
-            tz = ZoneInfo("Asia/Kolkata")
-            
-        if timestamp.tzinfo is None:
-            # If timestamp is naive, assume it's UTC
-            timestamp = timestamp.replace(tzinfo=ZoneInfo("UTC"))
-        local_timestamp = timestamp.astimezone(tz)
+        from agent.utils import TimezoneUtils
         
-        # Get day and date components
-        day_name = local_timestamp.strftime("%A")
-        day = local_timestamp.day
-        month = local_timestamp.strftime("%b")
-        year = local_timestamp.year
+        timestamp_str = TimezoneUtils.format_timestamp(timestamp, user_timezone)
         
-        # Get proper ordinal suffix
-        if 10 <= day % 100 <= 20:
-            suffix = "th"
-        else:
-            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
-        
-        date_str = f"{day_name}, {day}{suffix} {month} {year}"
-        time_str = local_timestamp.strftime("%H:%M")
-        
+        # Construct header
+        header = f"{timestamp_str}\nFROM: {medium}"
+        if author_name:
+             if author_id:
+                 header += f"\nAuthor: {author_name} | <@{author_id}>"
+             else:
+                 header += f"\nAuthor: {author_name}"
+             
         return {
             "role": "user",
-            "content": f"Date: {date_str}\nTime: {time_str}\nTimezone: {user_timezone}\nFROM: {medium}\nMessage: {message}"
+            "content": f"{header}\nMessage: {message}"
         }
     
-    async def _prepare_messages(self, user_id, user_timezone='Asia/Kolkata'):
+    async def _prepare_messages(self, user_id, user_timezone='Asia/Kolkata', thread_ts=None):
         """Prepare messages array for LLM from context."""
-        # Get context from state - it's already in LiteLLM format!
-        context_blob = self.state.get_context(user_id)
-        messages = json.loads(context_blob) if context_blob else []
         
-        # Find the index of the 3rd last user message
-        user_indices = [i for i, m in enumerate(messages) if m.get("role") == "user"]
+        # 1. Fetch Active Messages (Recent context)
+        # If thread_ts is present, we are in a thread. Fetch the thread conversation.
+        # If thread_ts is None, we are in root. Fetch the root conversation.
+        active_messages = self.state.get_messages(user_id, thread_ts=thread_ts, exclude_summarised=True)
         
-        split_index = len(messages) # Default to no JSON if not enough user messages
+        # 2. Logic for Summarization and Background History
+        # We only summarize ROOT messages. Thread messages are usually short-lived contexts or depend on root.
+        # However, if we are in a thread, we might want to inject ROOT history as background context.
         
-        # We want to split AFTER the 6th last user message
-        # user_indices[-1] is last, [-2] is 2nd last, [-3] is 3rd last
-        if len(user_indices) >= 6:
-            split_index = user_indices[-6] + 1
-        else:
-            split_index = 0
-        
-        old_messages = messages[:split_index]
-        recent_messages = messages[split_index:]
-        
-        # Check for summarization trigger
+        background_context_str = ""
         running_summary = self.state.get_running_summary(user_id)
-        
-        if len(old_messages) > 500:
-            from agent.summarisation import summarise_context
-            # Filter to only summarize root messages (exclude thread replies)
-            root_messages = [m for m in old_messages if not m.get('thread_ts')]
-            # Perform summarization
-            # Since _prepare_messages is called from invoke which is async, we should make this async too.
-            # But invoke calls this as a sync method currently.
-            # We need to change _prepare_messages to be async or run this synchronously.
-            # Given the tool definition, I'll make _prepare_messages async and await it in invoke.
-            new_summary = await summarise_context(self.state, user_id, root_messages)
-            if new_summary:
-                running_summary = new_summary
-                # Clear old_messages as they are now summarised
-                old_messages = []
-        
-        # Add system prompt with dynamic worker agents section
+
+        if thread_ts:
+            # --- THREAD MODE ---
+            # Active messages are the thread itself.
+            # Background context should be recent ROOT messages (to give context about the channel).
+            
+            # Fetch recent root messages (limit 20)
+            root_messages = self.state.get_messages(user_id, thread_ts=None, limit=20, exclude_summarised=True)
+            # Filter out the parent message if it appears in root_messages (it's already in active_messages as cached in thread)
+            # Actually get_messages(thread_ts=...) includes the parent if slack_ts matches.
+            pass 
+            
+            if root_messages:
+                 formatted_root = self._format_conversation_history(root_messages, user_timezone)
+                 background_context_str = f"\n\n## Recent Channel Activity (Background Context)\n<conversation_history>\n{formatted_root}\n</conversation_history>"
+                 
+        else:
+            # --- ROOT MODE (Standard DM) ---
+            # Check for summarization on active messages
+            # Only summarize if we have a lot of messages
+            if len(active_messages) > 100: # Threshold
+                 user_indices = [i for i, m in enumerate(active_messages) if m.get("role") == "user"]
+                 if len(user_indices) >= 10:
+                     # Summarize older half
+                     split_idx = user_indices[-6] # Keep last 6 interactions
+                     to_summarise = active_messages[:split_idx]
+                     active_messages = active_messages[split_idx:]
+                     
+                     from agent.summarisation import summarise_context
+                     # Summarize
+                     new_summary = await summarise_context(self.state, user_id, to_summarise)
+                     if new_summary:
+                        running_summary = new_summary
+
+        # 3. Construct System Prompt
         system_prompt = get_system_prompt(user_id)
         
-        # Inject running summary if exists
         if running_summary:
             system_prompt += f"\n\n## User Context Summary (PERSONALIZATION REFERENCE)\n<conversation_summary>\n{running_summary}\n</conversation_summary>"
         
-        # Format conversation history for REMAINING old messages (if any)
-        formatted_history = self._format_conversation_history(old_messages, user_timezone)
-        
-        # Add conversation history to system prompt 
-        if formatted_history:
-            system_prompt += f"\n\n## Conversation History (READ ONLY)\n<conversation_history>\n{formatted_history}\n</conversation_history>"
-
-        # print(system_prompt)
+        if background_context_str:
+            system_prompt += background_context_str
+            
         final_messages = []
         if system_prompt:
-            # Return a single system message with the complete history
-            final_messages.append({
+             final_messages.append({
                 "role": "system",
                 "content": system_prompt
             })
+            
+        # 4. Append Active Messages
+        # We need to make sure they are in LiteLLM format (role, content, tool_calls, etc)
+        # s.state.get_messages returns dicts that are mostly compatible, but we need to ensure cleanliness.
         
-        # Append recent messages as objects
-        final_messages.extend(recent_messages)
-        
+        for msg in active_messages:
+            # Filter out internal keys like 'thread_ts', 'slack_ts', 'author_id' that LiteLLM doesn't need
+            clean_msg = {
+                "role": msg['role'],
+                "content": msg['content']
+            }
+            if msg.get('tool_calls'):
+                clean_msg['tool_calls'] = msg['tool_calls']
+            if msg.get('tool_call_id'):
+                 clean_msg['tool_call_id'] = msg['tool_call_id']
+            if msg.get('tool_name'):
+                 clean_msg['name'] = msg['tool_name'] # LiteLLM expects 'name' for tool response
+                 
+            final_messages.append(clean_msg)
+            
         return final_messages
 
     def _format_conversation_history(self, messages, user_timezone='Asia/Kolkata'):
