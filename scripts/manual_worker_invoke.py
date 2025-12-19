@@ -21,10 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from worker_agent.agent.agent import WorkerAgent
 
-AGENT_NAME = "dhrup_connection_followup"  # Change this to your worker agent name
-USER_ID = "7122896488"            # Change this to the user ID
+AGENT_NAME = "cricket_reminder"  # Change this to your worker agent name
+USER_ID = "8147318773"            # Change this to the user ID
 MESSAGE = """
-Edit the above reminder to start from tomorrow, not today.
+You misinterpreted user's request, user wanted every 10 mins update until RCB's purse goes down to 20L or if the auction ends, until then user wanted 10 mins update for RCB auction, along with every 30 mins update for big moves in the auction and updates on top player's auction details.
 """  
 # Change this to your message
 

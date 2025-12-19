@@ -119,6 +119,34 @@ class State:
                         CREATE INDEX IF NOT EXISTS idx_chats_context_user_seq 
                         ON chats_context(user_id, message_sequence)
                     """)
+                    
+                    # MPIM support columns (idempotent)
+                    cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS author_id TEXT")
+                    cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS author_name TEXT")
+                    cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS thread_ts TEXT")
+                    cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS slack_ts TEXT")
+                    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type TEXT DEFAULT 'user'")
+                    
+                    cursor.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_chats_context_thread 
+                        ON chats_context(user_id, thread_ts)
+                    """)
+                    
+                    # Slack users cache table
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS slack_users (
+                            slack_user_id TEXT PRIMARY KEY,
+                            team_id TEXT NOT NULL,
+                            display_name TEXT,
+                            real_name TEXT,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    cursor.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_slack_users_team 
+                        ON slack_users(team_id)
+                    """)
+                    
                 conn.commit()
             finally:
                 self.pool.putconn(conn)
@@ -153,6 +181,46 @@ class State:
                     CREATE INDEX IF NOT EXISTS idx_chats_context_user_seq 
                     ON chats_context(user_id, message_sequence)
                 """)
+                
+                # MPIM support columns (check and add if not exists)
+                self.cursor.execute("PRAGMA table_info(chats_context)")
+                existing_cols = [col[1] for col in self.cursor.fetchall()]
+                
+                if 'author_id' not in existing_cols:
+                    self.cursor.execute("ALTER TABLE chats_context ADD COLUMN author_id TEXT")
+                if 'author_name' not in existing_cols:
+                    self.cursor.execute("ALTER TABLE chats_context ADD COLUMN author_name TEXT")
+                if 'thread_ts' not in existing_cols:
+                    self.cursor.execute("ALTER TABLE chats_context ADD COLUMN thread_ts TEXT")
+                if 'slack_ts' not in existing_cols:
+                    self.cursor.execute("ALTER TABLE chats_context ADD COLUMN slack_ts TEXT")
+                
+                # Check users table for user_type column
+                self.cursor.execute("PRAGMA table_info(users)")
+                user_cols = [col[1] for col in self.cursor.fetchall()]
+                if 'user_type' not in user_cols:
+                    self.cursor.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
+                
+                self.cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_chats_context_thread 
+                    ON chats_context(user_id, thread_ts)
+                """)
+                
+                # Slack users cache table
+                self.cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS slack_users (
+                        slack_user_id TEXT PRIMARY KEY,
+                        team_id TEXT NOT NULL,
+                        display_name TEXT,
+                        real_name TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                self.cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_slack_users_team 
+                    ON slack_users(team_id)
+                """)
+                
                 self.conn.commit()
     
     def get_context(self, user_id):
@@ -240,7 +308,7 @@ class State:
                 
                 return json.dumps(messages) if messages else None
     
-    def add_context(self, user_id, response_or_responses):
+    def add_context(self, user_id, response_or_responses, thread_ts=None):
         """Add context for a given user_id to chats_context table. Can handle single response or list of responses."""
         if isinstance(response_or_responses, list):
             responses = response_or_responses
@@ -279,9 +347,9 @@ class State:
                         
                         cursor.execute("""
                             INSERT INTO chats_context 
-                            (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name))
+                            (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name, thread_ts)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, thread_ts))
                 
                 conn.commit()
             finally:
@@ -317,9 +385,9 @@ class State:
                     
                     self.cursor.execute("""
                         INSERT INTO chats_context 
-                        (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name))
+                        (user_id, message_sequence, role, content, tool_calls, tool_call_id, tool_name, thread_ts)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (user_id, seq, role, content, tool_calls, tool_call_id, tool_name, thread_ts))
                 
                 self.conn.commit()
 

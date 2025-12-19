@@ -130,7 +130,7 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
     return content.replace('**', '') if isinstance(content, str) else content
 
 
-async def send_message_to_user(user_id: str, message: str):
+async def send_message_to_user(user_id: str, message: str, thread_ts: str = None, is_mpim: bool = False):
     """
     Send a message to the user immediately.
     
@@ -138,8 +138,10 @@ async def send_message_to_user(user_id: str, message: str):
     without waiting for the final response. This does NOT break the agent's thought process loop.
     
     Args:
-        user_id (str): The user's ID (Telegram ID or Slack User ID, injected automatically).
+        user_id (str): The user's ID (Telegram ID or Slack User/Channel ID, injected automatically).
         message (str): The message content to send to the user.
+        thread_ts (str): Thread timestamp for replying in a thread (MPIM only, injected automatically).
+        is_mpim (bool): Whether this is a Multi-Party DM (injected automatically).
         
     Returns:
         str: Status of the message sending.
@@ -149,6 +151,9 @@ async def send_message_to_user(user_id: str, message: str):
     # Get user platform
     user = get_user(user_id)
     platform = user.get('platform', 'telegram') if user else 'telegram'
+    
+    if not message or not message.strip():
+        return "Error: Message is empty"
     
     if platform == 'slack':
         team_id = user.get('team_id')
@@ -174,7 +179,13 @@ async def send_message_to_user(user_id: str, message: str):
         try:
             from slack_sdk.web.async_client import AsyncWebClient
             client = AsyncWebClient(token=slack_token)
-            await client.chat_postMessage(channel=user_id, text=message)
+            
+            # For MPIM, always reply in thread if thread_ts is provided
+            if is_mpim and thread_ts:
+                await client.chat_postMessage(channel=user_id, text=message, thread_ts=thread_ts)
+            else:
+                await client.chat_postMessage(channel=user_id, text=message)
+            
             return "Message sent successfully to Slack"
         except Exception as e:
             return f"Error sending message to Slack: {str(e)}"
@@ -192,3 +203,4 @@ async def send_message_to_user(user_id: str, message: str):
             return "Message sent successfully to Telegram"
         except Exception as e:
             return f"Error sending message to Telegram: {str(e)}"
+

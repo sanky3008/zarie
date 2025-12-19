@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import re
 from aiohttp import web
 from slack_bolt.app.async_app import AsyncApp
 from slack_bolt.adapter.aiohttp import to_bolt_request, to_aiohttp_response
@@ -10,6 +11,10 @@ from user_manager import create_or_update_user, get_user
 from dotenv import load_dotenv
 from datetime import datetime, timezone, timedelta
 from .store import CustomInstallationStore
+from agent.state.mpim_state import (
+    store_mpim_message, get_cached_slack_user, upsert_slack_user,
+    build_mpim_context
+)
 
 load_dotenv()
 
@@ -61,7 +66,7 @@ class SlackBot:
         oauth_settings = AsyncOAuthSettings(
             client_id=self.client_id,
             client_secret=self.client_secret,
-            scopes=["app_mentions:read", "chat:write", "im:history", "users:read"], # Add other scopes as needed
+            scopes=["app_mentions:read", "chat:write", "im:history", "users:read", "mpim:history"],
             installation_store=self.installation_store,
             install_path="/slack/install",
             redirect_uri_path="/slack/oauth_redirect",
@@ -79,8 +84,53 @@ class SlackBot:
         # Buffer for debouncing: { user_id: { 'messages': [str], 'task': asyncio.Task } }
         self.user_message_buffers = {}
         
+        # MPIM message buffers: { channel_id: { 'messages': [...], 'task': asyncio.Task } }
+        self.mpim_message_buffers = {}
+        
         # Register handlers
         self.register_handlers()
+
+    async def _get_user_display_name(self, client, user_id: str, team_id: str) -> str:
+        """Get user display name with caching."""
+        # Check cache first
+        cached = get_cached_slack_user(user_id)
+        if cached:
+            return cached.get('display_name') or cached.get('real_name') or user_id
+        
+        # Fetch from Slack API
+        try:
+            user_info = await client.users_info(user=user_id)
+            user_data = user_info.get("user", {})
+            display_name = user_data.get("profile", {}).get("display_name")
+            real_name = user_data.get("real_name")
+            
+            # Cache it
+            upsert_slack_user(user_id, team_id, display_name, real_name)
+            
+            return display_name or real_name or user_id
+        except Exception as e:
+            print(f"Error fetching user info for {user_id}: {e}")
+            return user_id
+
+    def _is_bot_mentioned(self, event: dict, bot_user_id: str = None) -> bool:
+        """Check if the bot is mentioned in the message."""
+        text = event.get("text", "")
+        # Check for @mention pattern
+        # Slack mentions look like <@U1234567>
+        if bot_user_id and f"<@{bot_user_id}>" in text:
+            return True
+        # Also check for "zarie" case-insensitive
+        if re.search(r'\bzarie\b', text, re.IGNORECASE):
+            return True
+        return False
+
+    def _normalize_bot_mention(self, text: str, bot_user_id: str = None) -> str:
+        """Replace bot mention with 'Zarie' for cleaner LLM input."""
+        if bot_user_id:
+            text = text.replace(f"<@{bot_user_id}>", "Zarie")
+        # Also normalize "@zarie" or "zarie" to "Zarie"
+        text = re.sub(r'@zarie', 'Zarie', text, flags=re.IGNORECASE)
+        return text.strip()
 
     def register_handlers(self):
         """Register event handlers."""
@@ -89,7 +139,7 @@ class SlackBot:
         async def handle_message_events(body, logger, client):
             event = body.get("event", {})
             
-            # Ignore bot messages and message changes/deletions for now
+            # Ignore bot messages and message changes/deletions
             if event.get("bot_id") or event.get("subtype"):
                 return
             
@@ -97,84 +147,253 @@ class SlackBot:
             text = event.get("text")
             channel = event.get("channel")
             channel_type = event.get("channel_type")
-            ts = event.get("ts") # Timestamp
-            team_id = body.get("team_id") # Get team_id from the outer body
-            
-            # Only process 1:1 Direct Messages
-            if channel_type != "im":
-                return
+            ts = event.get("ts")
+            thread_ts = event.get("thread_ts")  # None if root message
+            team_id = body.get("team_id")
             
             if not user_id or not text:
                 return
-
-            # Get user info from Slack
-            try:
-                user_info = await client.users_info(user=user_id)
-                user_data = user_info.get("user", {})
-                
-                real_name = user_data.get("real_name")
-                display_name = user_data.get("profile", {}).get("display_name")
-                username = display_name or user_data.get("name") # Fallback to name if display_name is empty
-                
-                # Check/Update user in DB
-                existing_user = get_user(user_id)
-                should_update = True
-                
-                if existing_user:
-                    if (existing_user.get('name') and 
-                        existing_user.get('telegram_username') and 
-                        existing_user.get('has_zarie') and
-                        existing_user.get('platform') == 'slack' and
-                        existing_user.get('team_id') == team_id):
-                        should_update = False
-                
-                if should_update:
-                    tz = user_data.get("tz")
-
-                    create_or_update_user(
-                        telegram_id=user_id,
-                        first_name=real_name,
-                        username=username,
-                        platform='slack',
-                        team_id=team_id,
-                        timezone=tz
-                    )
-                    
-            except Exception as e:
-                logger.error(f"Error fetching user info: {e}")
-                # Continue anyway, maybe user exists
             
-            # Extract text from attachments (forwarded messages)
-            attachments = event.get("attachments", [])
-            attachment_text = ""
-            for attachment in attachments:
-                # Get text, fallback to title or fallback field
-                a_text = attachment.get("text") or attachment.get("title") or attachment.get("fallback")
-                if a_text:
-                    attachment_text += f"\n[Forwarded Message]: {a_text}"
+            # Route based on channel type
+            if channel_type == "im":
+                # DM - use existing logic
+                await self._handle_dm_message(body, event, client, logger)
             
-            # Append attachment text to main text
-            if attachment_text:
-                text += attachment_text
-
-            # Debouncing logic
-            if user_id in self.user_message_buffers:
-                self.user_message_buffers[user_id]['task'].cancel()
-                self.user_message_buffers[user_id]['messages'].append(text)
+            elif channel_type in ["mpim", "group"]:
+                # MPIM - new logic
+                await self._handle_mpim_message(body, event, client, logger)
+            
+            # Ignore public/private channels (not supported)
             else:
-                self.user_message_buffers[user_id] = {
-                    'messages': [text],
-                    'task': None,
-                    'channel': channel,
-                    'ts': ts
-                }
+                return
+
+    async def _handle_dm_message(self, body, event, client, logger):
+        """Handle 1:1 Direct Message (existing logic)."""
+        user_id = event.get("user")
+        text = event.get("text")
+        channel = event.get("channel")
+        ts = event.get("ts")
+        team_id = body.get("team_id")
+        
+        # Get user info from Slack
+        try:
+            user_info = await client.users_info(user=user_id)
+            user_data = user_info.get("user", {})
             
-            # Schedule processing
-            async def delayed_processing():
-                await asyncio.sleep(5) # 5 seconds debounce
-                await self.process_buffered_messages(user_id, client)
+            real_name = user_data.get("real_name")
+            display_name = user_data.get("profile", {}).get("display_name")
+            username = display_name or user_data.get("name")
             
-            self.user_message_buffers[user_id]['task'] = asyncio.create_task(delayed_processing())
+            # Check/Update user in DB
+            existing_user = get_user(user_id)
+            should_update = True
+            
+            if existing_user:
+                if (existing_user.get('name') and 
+                    existing_user.get('telegram_username') and 
+                    existing_user.get('has_zarie') and
+                    existing_user.get('platform') == 'slack' and
+                    existing_user.get('team_id') == team_id):
+                    should_update = False
+            
+            if should_update:
+                tz = user_data.get("tz")
+                create_or_update_user(
+                    telegram_id=user_id,
+                    first_name=real_name,
+                    username=username,
+                    platform='slack',
+                    team_id=team_id,
+                    timezone=tz
+                )
+                
+        except Exception as e:
+            logger.error(f"Error fetching user info: {e}")
+        
+        # Extract text from attachments
+        attachments = event.get("attachments", [])
+        for attachment in attachments:
+            a_text = attachment.get("text") or attachment.get("title") or attachment.get("fallback")
+            if a_text:
+                text += f"\n[Forwarded Message]: {a_text}"
+
+        # Debouncing logic
+        if user_id in self.user_message_buffers:
+            self.user_message_buffers[user_id]['task'].cancel()
+            self.user_message_buffers[user_id]['messages'].append(text)
+        else:
+            self.user_message_buffers[user_id] = {
+                'messages': [text],
+                'task': None,
+                'channel': channel,
+                'ts': ts
+            }
+        
+        async def delayed_processing():
+            await asyncio.sleep(5)
+            await self.process_buffered_messages(user_id, client)
+        
+        self.user_message_buffers[user_id]['task'] = asyncio.create_task(delayed_processing())
+
+    async def _handle_mpim_message(self, body, event, client, logger):
+        """Handle Multi-Party DM message."""
+        author_id = event.get("user")
+        text = event.get("text")
+        channel_id = event.get("channel")
+        ts = event.get("ts")
+        thread_ts = event.get("thread_ts")  # None if root message
+        team_id = body.get("team_id")
+        
+        # Get bot user ID to check mentions
+        bot_user_id = None
+        try:
+            auth_result = await client.auth_test()
+            bot_user_id = auth_result.get("user_id")
+        except Exception as e:
+            logger.error(f"Error getting bot user ID: {e}")
+        
+        # Get author display name (with caching)
+        author_name = await self._get_user_display_name(client, author_id, team_id)
+        
+        # Ensure MPIM pseudo-user exists in DB
+        existing_mpim = get_user(channel_id)
+        if not existing_mpim:
+            # Create MPIM as pseudo-user
+            create_or_update_user(
+                telegram_id=channel_id,
+                first_name=f"MPIM-{channel_id[:8]}",
+                username=None,
+                platform='slack',
+                team_id=team_id,
+                timezone='UTC'  # Will be overridden by first user's timezone
+            )
+            # Update user_type to 'mpim'
+            from user_manager import get_db_connection
+            conn, db_type = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                if db_type == 'postgres':
+                    cursor.execute("UPDATE users SET user_type = 'mpim' WHERE telegram_id = %s", (channel_id,))
+                else:
+                    cursor.execute("UPDATE users SET user_type = 'mpim' WHERE telegram_id = ?", (channel_id,))
+                conn.commit()
+            finally:
+                conn.close()
+        
+        # Extract text from attachments
+        attachments = event.get("attachments", [])
+        for attachment in attachments:
+            a_text = attachment.get("text") or attachment.get("title") or attachment.get("fallback")
+            if a_text:
+                text += f"\n[Forwarded Message]: {a_text}"
+        
+        # Normalize text and strip bot mention BEFORE storing
+        clean_text = self._normalize_bot_mention(text, bot_user_id)
+        
+        # Store message in chats_context (always, even if not mentioning bot)
+        store_mpim_message(
+            user_id=channel_id,
+            role="user",
+            content=clean_text, # Store normalized text
+            author_id=author_id,
+            author_name=author_name,
+            thread_ts=thread_ts,
+            slack_ts=ts
+        )
+        
+        # Only invoke Zarie if mentioned
+        if not self._is_bot_mentioned(event, bot_user_id):
+            return
+        
+        # Use debouncing for MPIM too (with channel+thread as key)
+        buffer_key = f"{channel_id}:{thread_ts or ts}"
+        
+        if buffer_key in self.mpim_message_buffers:
+            self.mpim_message_buffers[buffer_key]['task'].cancel()
+            self.mpim_message_buffers[buffer_key]['messages'].append(clean_text)
+        else:
+            self.mpim_message_buffers[buffer_key] = {
+                'messages': [clean_text],
+                'task': None,
+                'channel': channel_id,
+                'ts': ts,
+                'thread_ts': thread_ts,
+                'team_id': team_id,
+                'author_name': author_name
+            }
+        
+        async def delayed_mpim_processing():
+            await asyncio.sleep(5)
+            await self._process_mpim_messages(buffer_key, client)
+        
+        self.mpim_message_buffers[buffer_key]['task'] = asyncio.create_task(delayed_mpim_processing())
+
+    async def _process_mpim_messages(self, buffer_key: str, client):
+        """Process buffered MPIM messages and invoke Zarie."""
+        if buffer_key not in self.mpim_message_buffers:
+            return
+        
+        buffer_data = self.mpim_message_buffers.pop(buffer_key)
+        messages = buffer_data['messages']
+        channel_id = buffer_data['channel']
+        ts = buffer_data['ts']
+        thread_ts = buffer_data['thread_ts']
+        team_id = buffer_data['team_id']
+        author_name = buffer_data['author_name']
+        
+        if not messages:
+            return
+        
+        combined_text = "\n".join(messages)
+        
+        # The thread to reply to: if original was in a thread, use that thread_ts
+        # If original was root message, reply to that message (creating a new thread)
+        reply_thread_ts = thread_ts or ts
+        
+        try:
+            message_timestamp_utc = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            
+            # Get user timezone (use first participant's or default)
+            mpim_user = get_user(channel_id)
+            user_timezone = mpim_user.get('timezone', 'Asia/Kolkata') if mpim_user else 'Asia/Kolkata'
+            
+            has_response = False
+            
+            async for chunk in self.agent.invoke(
+                channel_id,
+                combined_text,
+                "End-User via Slack MPIM",
+                message_timestamp_utc,
+                user_timezone,
+                is_mpim=True,
+                thread_ts=thread_ts, # Pass original thread_ts (None for root) for context lookup
+                author_name=author_name,
+                reply_ts=reply_thread_ts # Pass the reply thread ID to tools
+            ):
+                if chunk.strip():
+                    if "No_Response_Needed" in chunk:
+                        has_response = True
+                        continue
+                    # Always reply in thread for MPIM
+                    await client.chat_postMessage(
+                        channel=channel_id, 
+                        text=chunk,
+                        thread_ts=reply_thread_ts
+                    )
+                    has_response = True
+            
+            if not has_response:
+                pass
+                
+        except Exception as e:
+            print(f"Error processing MPIM message: {e}")
+            import traceback
+            traceback.print_exc()
+            await client.chat_postMessage(
+                channel=channel_id, 
+                text="Oops, something went wrong.",
+                thread_ts=reply_thread_ts
+            )
 
     async def process_buffered_messages(self, user_id, client):
         """Process buffered messages for a user."""

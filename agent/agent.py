@@ -127,26 +127,97 @@ class Agent:
                 return "MCP client not available"
         return mcp_tool_wrapper
 
-    async def invoke(self, user_id, message, medium, timestamp=None, user_timezone='Asia/Kolkata'):
-        """Invoke the agent with a user message and medium - streaming generator."""
+    async def invoke(self, user_id, message, medium, timestamp=None, user_timezone='Asia/Kolkata',
+                     is_mpim=False, thread_ts=None, author_name=None, reply_ts=None):
+        """Invoke the agent with a user message and medium - streaming generator.
+        
+        Args:
+            user_id: User ID (or MPIM channel ID for group DMs)
+            message: The user's message text
+            medium: Source of the message (e.g., "End-User via Slack")
+            timestamp: Message timestamp (UTC)
+            user_timezone: User's timezone string
+            is_mpim: True if this is a Multi-Party DM
+            thread_ts: Thread timestamp if message is a reply (MPIM only, for context)
+            author_name: Display name of message author (MPIM only)
+            reply_ts: Timestamp to reply to (MPIM only, for tools)
+        """
         # Ensure tools are initialized
         await self._ensure_tools_initialized()
         
         # Use UTC timezone-aware datetime if no timestamp provided
         timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
-        # Create and store user message
-        user_message = self._create_user_message(message, medium, timestamp, user_timezone)
-        self.state.add_context(user_id, user_message)
+        # Store current thread context for tool injection
+        self._current_is_mpim = is_mpim
+        self._current_thread_ts = thread_ts
+        self._current_reply_ts = reply_ts
         
-        # Prepare messages for LLM
-        messages = await self._prepare_messages(user_id, user_timezone)
+        if is_mpim:
+            # MPIM: Use thread-aware context building
+            # Note: Message was already stored by bot.py via store_mpim_message
+            from agent.state.mpim_state import build_mpim_context
+            
+            # Get running summary
+            running_summary = self.state.get_running_summary(user_id)
+            
+            # Build context based on invocation location (root or thread)
+            context = await build_mpim_context(self.state, user_id, thread_ts, user_timezone, running_summary)
+            
+            # Get system prompt
+            system_prompt = get_system_prompt(user_id)
+            
+            # Append MPIM-specific context to system prompt
+            if context.get('system_context'):
+                system_prompt += context['system_context']
+            
+            final_messages = [{
+                "role": "system",
+                "content": system_prompt
+            }]
+            
+            # Add formatted messages from context
+            final_messages.extend(context.get('messages', []))
+            messages = final_messages
+        else:
+            # DM: Use existing logic
+            user_message = self._create_user_message(message, medium, timestamp, user_timezone)
+            self.state.add_context(user_id, user_message)
+            messages = await self._prepare_messages(user_id, user_timezone)
         
         # Stream responses from ReAct loop
         import asyncio
         async for chunk in self._react_loop_streaming(messages, user_id, user_timezone):
             yield chunk
             await asyncio.sleep(0.5)  # 500ms delay between chunks for natural pacing
+    
+    async def _prepare_mpim_messages(self, user_id, thread_ts, user_timezone, author_name):
+        """Prepare messages for MPIM invocation with thread-aware context."""
+        from agent.state.mpim_state import build_mpim_context
+        from agent.prompt import get_system_prompt
+        
+        # Get running summary
+        running_summary = self.state.get_running_summary(user_id)
+        
+        # Build context based on invocation location (root or thread)
+        context = await build_mpim_context(self.state, user_id, thread_ts, user_timezone, running_summary)
+        
+        # Get system prompt
+        system_prompt = get_system_prompt(user_id)
+        
+        # Append MPIM-specific context to system prompt
+        if context.get('system_context'):
+            system_prompt += context['system_context']
+        
+        final_messages = [{
+            "role": "system",
+            "content": system_prompt
+        }]
+        
+        # Add formatted messages from context
+        final_messages.extend(context.get('messages', []))
+        
+        return final_messages
     
     def _create_user_message(self, message, medium, timestamp, user_timezone):
         """Create a formatted user message with date, time, and medium."""
@@ -207,12 +278,14 @@ class Agent:
         
         if len(old_messages) > 500:
             from agent.summarisation import summarise_context
+            # Filter to only summarize root messages (exclude thread replies)
+            root_messages = [m for m in old_messages if not m.get('thread_ts')]
             # Perform summarization
             # Since _prepare_messages is called from invoke which is async, we should make this async too.
             # But invoke calls this as a sync method currently.
             # We need to change _prepare_messages to be async or run this synchronously.
             # Given the tool definition, I'll make _prepare_messages async and await it in invoke.
-            new_summary = await summarise_context(self.state, user_id, old_messages)
+            new_summary = await summarise_context(self.state, user_id, root_messages)
             if new_summary:
                 running_summary = new_summary
                 # Clear old_messages as they are now summarised
@@ -332,6 +405,18 @@ class Agent:
     async def _react_loop_streaming(self, messages, user_id, user_timezone='Asia/Kolkata'):
         """Run ReAct loop, yielding text chunks on \\n\\n boundaries and executing tool calls."""
         while True:
+            # DEBUG: Save context to file before LLM call
+            # try:
+            #     import json
+            #     def default_serializer(obj):
+            #         if hasattr(obj, 'dict'): return obj.dict()
+            #         if hasattr(obj, 'to_dict'): return obj.to_dict()
+            #         return str(obj)
+            #     with open("debug_context.json", "w") as f:
+            #         json.dump(messages, f, indent=2, default=default_serializer)
+            # except Exception as e:
+            #     print(f"DEBUG SAVE FAILED: {e}")
+
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
                 model="deepseek/deepseek-chat",
@@ -375,6 +460,13 @@ class Agent:
                         function_args["user_timezone"] = user_timezone
                     elif function_name == "send_message_to_user":
                         function_args["user_id"] = user_id
+                        # Inject MPIM thread context if available
+                        if hasattr(self, '_current_is_mpim') and self._current_is_mpim:
+                            function_args["is_mpim"] = True
+                            if hasattr(self, '_current_reply_ts') and self._current_reply_ts:
+                                function_args["thread_ts"] = self._current_reply_ts
+                            elif hasattr(self, '_current_thread_ts') and self._current_thread_ts:
+                                function_args["thread_ts"] = self._current_thread_ts
                     
                     # Execute the tool function (handle both sync and async)
                     if function_name in self.tool_functions:
@@ -405,7 +497,8 @@ class Agent:
                  
                 # Store tool call request and all responses atomically
                 all_tool_messages = [tool_call_request] + tool_responses
-                self.state.add_context(user_id, all_tool_messages)
+                thread_ts = getattr(self, '_current_thread_ts', None)
+                self.state.add_context(user_id, all_tool_messages, thread_ts=thread_ts)
                 
                 # Add to messages for current conversation
                 messages.append(assistant_msg)
@@ -420,10 +513,11 @@ class Agent:
                     yield content
                 
                 # Store complete assistant response in state
+                thread_ts = getattr(self, '_current_thread_ts', None)
                 self.state.add_context(user_id, {
                     "role": "assistant",
                     "content": content
-                })
+                }, thread_ts=thread_ts)
                 return
     
 
