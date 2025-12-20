@@ -138,7 +138,9 @@ class State:
                             slack_user_id TEXT PRIMARY KEY,
                             team_id TEXT NOT NULL,
                             display_name TEXT,
+                            display_name TEXT,
                             real_name TEXT,
+                            timezone TEXT,
                             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
                     """)
@@ -146,6 +148,9 @@ class State:
                         CREATE INDEX IF NOT EXISTS idx_slack_users_team 
                         ON slack_users(team_id)
                     """)
+                    
+                    # Add timezone column if not exists (Postgres)
+                    cursor.execute("ALTER TABLE slack_users ADD COLUMN IF NOT EXISTS timezone TEXT")
                     
                 conn.commit()
             finally:
@@ -213,6 +218,7 @@ class State:
                         team_id TEXT NOT NULL,
                         display_name TEXT,
                         real_name TEXT,
+                        timezone TEXT,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
@@ -220,6 +226,12 @@ class State:
                     CREATE INDEX IF NOT EXISTS idx_slack_users_team 
                     ON slack_users(team_id)
                 """)
+                
+                # Check slack_users table for timezone column
+                self.cursor.execute("PRAGMA table_info(slack_users)")
+                slack_user_cols = [col[1] for col in self.cursor.fetchall()]
+                if 'timezone' not in slack_user_cols:
+                    self.cursor.execute("ALTER TABLE slack_users ADD COLUMN timezone TEXT")
                 
                 self.conn.commit()
     
@@ -529,7 +541,7 @@ class State:
             try:
                 with conn.cursor(cursor_factory=self.RealDictCursor) as cursor:
                     cursor.execute("""
-                        SELECT display_name, real_name, updated_at
+                        SELECT display_name, real_name, timezone, updated_at
                         FROM slack_users 
                         WHERE slack_user_id = %s
                     """, (slack_user_id,))
@@ -539,12 +551,12 @@ class State:
         else:
             with self.lock:
                 self.cursor.execute("""
-                    SELECT display_name, real_name, updated_at
+                    SELECT display_name, real_name, timezone, updated_at
                     FROM slack_users 
                     WHERE slack_user_id = ?
                 """, (slack_user_id,))
                 tuple_row = self.cursor.fetchone()
-                row = {'display_name': tuple_row[0], 'real_name': tuple_row[1], 'updated_at': tuple_row[2]} if tuple_row else None
+                row = {'display_name': tuple_row[0], 'real_name': tuple_row[1], 'timezone': tuple_row[2], 'updated_at': tuple_row[3]} if tuple_row else None
 
         if row:
             updated_at = row['updated_at']
@@ -564,20 +576,21 @@ class State:
                  
         return None
 
-    def upsert_slack_user(self, slack_user_id, team_id, display_name=None, real_name=None):
+    def upsert_slack_user(self, slack_user_id, team_id, display_name=None, real_name=None, timezone=None):
         """Insert or update Slack user in cache."""
         if self.db_type == 'postgres':
             conn = self.pool.getconn()
             try:
                 with conn.cursor() as cursor:
                     cursor.execute("""
-                        INSERT INTO slack_users (slack_user_id, team_id, display_name, real_name, updated_at)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        INSERT INTO slack_users (slack_user_id, team_id, display_name, real_name, timezone, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                         ON CONFLICT (slack_user_id) DO UPDATE
                         SET display_name = EXCLUDED.display_name,
                             real_name = EXCLUDED.real_name,
+                            timezone = EXCLUDED.timezone,
                             updated_at = CURRENT_TIMESTAMP
-                    """, (slack_user_id, team_id, display_name, real_name))
+                    """, (slack_user_id, team_id, display_name, real_name, timezone))
                 conn.commit()
             finally:
                 self.pool.putconn(conn)
@@ -585,9 +598,9 @@ class State:
             with self.lock:
                 self.cursor.execute("""
                     INSERT OR REPLACE INTO slack_users 
-                    (slack_user_id, team_id, display_name, real_name, updated_at)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (slack_user_id, team_id, display_name, real_name))
+                    (slack_user_id, team_id, display_name, real_name, timezone, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (slack_user_id, team_id, display_name, real_name, timezone))
                 self.conn.commit()
 
     def get_running_summary(self, user_id):

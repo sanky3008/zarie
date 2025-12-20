@@ -98,9 +98,10 @@ class SlackBot:
             user_data = user_info.get("user", {})
             display_name = user_data.get("profile", {}).get("display_name")
             real_name = user_data.get("real_name")
+            timezone = user_data.get("tz")
             
             # Cache it
-            self.agent.state.upsert_slack_user(user_id, team_id, display_name, real_name)
+            self.agent.state.upsert_slack_user(user_id, team_id, display_name, real_name, timezone)
             
             return display_name or real_name or user_id
         except Exception as e:
@@ -200,6 +201,10 @@ class SlackBot:
         # Check strict mention requirement for MPIM invocation
         is_mentioned = self._is_bot_mentioned(event, bot_user_id)
         
+        # Ensure author info is updated (especially FIRST message from user)
+        # This fixes timezone issues by caching the user's timezone from Slack
+        await self._ensure_user_updated(client, author_id, team_id)
+        
         # Even if not mentioned, we might want to store context?
         # But Agent.invoke handles storage. If we don't invoke, we don't store.
         # Wait, previous logic stored EVERYTHING using store_mpim_message manually.
@@ -257,9 +262,20 @@ class SlackBot:
             message_timestamp_utc = datetime.fromtimestamp(float(ts), tz=timezone.utc)
             
             # Fetch user for timezone
-            user_id = channel if is_mpim else key # Key is user_id for DM
-            user = get_user(user_id)
-            user_timezone = user.get('timezone', 'Asia/Kolkata') if user else 'Asia/Kolkata'
+            # Fetch user for timezone
+            if is_mpim:
+                user_id = channel # Use channel ID as user_id for context
+                # For MPIM, use the AUTHOR's timezone (sender), not the channel's
+                cached_user = self.agent.state.get_cached_slack_user(author_id)
+                if cached_user and cached_user.get('timezone'):
+                     user_timezone = cached_user.get('timezone')
+                else:
+                     user_timezone = 'Asia/Kolkata' # Default fallback
+            else:
+                # DM Case: key is user_id
+                user_id = key 
+                user = get_user(user_id)
+                user_timezone = user.get('timezone', 'Asia/Kolkata') if user else 'Asia/Kolkata'
             
             reply_thread_ts = thread_ts or ts if is_mpim else None
             
