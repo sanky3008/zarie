@@ -63,3 +63,19 @@ htmlcov/
 *.tar.gz
 *.zip
 
+# Evals - ignore everything except .py files and requirements.txt
+evals/*
+!evals/*.py
+!evals/requirements.txt
+!evals/*/
+evals/*/*
+!evals/*/*.py
+!evals/*/requirements.txt
+!evals/*/*/
+evals/*/*/*
+!evals/*/*/*.py
+!evals/*/*/requirements.txt
+
+
+# DeepEval
+.deepeval/

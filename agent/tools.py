@@ -83,7 +83,7 @@ def get_directory():
     return _directory
 
 
-async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, message: str, user_timezone: str = 'Asia/Kolkata'):
+async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, message: str, user_timezone: str = 'Asia/Kolkata', timestamp=None):
     """
     Create or invoke a worker agent to handle automated workflows and reminders.
     
@@ -99,6 +99,7 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
         purpose (str): Brief description of the agent's purpose (e.g., "Handle weekly reminders")
         message (str): The task or instruction to give to the worker agent
         user_timezone (str): The user's timezone (injected automatically).
+        timestamp (datetime): (Optional) Timestamp for the interaction.
         
     Returns:
         str: Response from the worker agent
@@ -123,7 +124,8 @@ async def invoke_worker_agent(agent_name: str, user_id: str, purpose: str, messa
         user_id=user_id,
         message=message,
         medium="MESSAGE_FROM_Zarie",
-        user_timezone=user_timezone
+        user_timezone=user_timezone,
+        timestamp=timestamp
     )
     
     content = response.get('content', 'No response from worker agent')

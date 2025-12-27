@@ -206,9 +206,16 @@ def get_due_events():
     finally:
         return_db_connection(conn, db_type)
 
-def update_next_trigger(event_id, recurrence_rule):
+def update_next_trigger(event_id, recurrence_rule, simulation_timestamp=None):
     """Calculate and update next trigger time for recurring events
-    Returns: True if event is still active, False if it was disabled"""
+    Returns: True if event is still active, False if it was disabled
+    
+    Args:
+        event_id: The event ID to update
+        recurrence_rule: RRULE string for recurrence
+        simulation_timestamp: Optional datetime for simulation mode (evals). If provided, 
+                            uses this instead of real current time for "past" comparisons.
+    """
     conn, db_type = get_db_connection()
     
     try:
@@ -328,8 +335,13 @@ def update_next_trigger(event_id, recurrence_rule):
         
         # If next_occurrence is still in the past (e.g., missed reminders), 
         # calculate from NOW instead to avoid rapid re-triggering
-        now_utc = get_utc_now()
-        if next_occurrence <= now_utc:
+        # In simulation mode, use simulation_timestamp instead of real current time
+        now_utc = simulation_timestamp if simulation_timestamp else get_utc_now()
+        if simulation_timestamp:
+            # In simulation mode, just use the next occurrence from dtstart
+            # Don't adjust to "real" current time
+            pass
+        elif next_occurrence <= now_utc:
             print(f"  Warning: Next occurrence {next_occurrence} is in the past!")
             # Calculate next occurrence from NOW instead of from dtstart
             try:

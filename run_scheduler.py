@@ -94,7 +94,7 @@ async def send_message(user_id: str, message: str):
             else:
                 print(f"Error sending Telegram message to {user_id}: {e}")
 
-async def process_event(event, worker_agent, donna):
+async def process_event(event, worker_agent, donna, simulation_timestamp=None):
     """Process a single time event with timeout"""
     try:
         agent_name = event['agent_name']
@@ -141,11 +141,13 @@ async def process_event(event, worker_agent, donna):
             medium = f"REMINDER_TRIGGERED: {reminder_names}"
             
             # Step 1: Direct async call to worker agent
+            # Use simulation_timestamp if provided (for evals), otherwise default (None -> current time)
             worker_response = await worker_agent.invoke(
                 agent_name,
                 user_id,
                 reminder_text,
                 medium,
+                timestamp=simulation_timestamp,
                 user_timezone=user_timezone
             )
 
@@ -157,7 +159,7 @@ async def process_event(event, worker_agent, donna):
                 # Still update reminder statuses
                 active_recurring_ids = []
                 for reminder_obj in recurring_reminders:
-                    is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                    is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'], simulation_timestamp)
                     if is_active:
                         active_recurring_ids.append(reminder_obj['id'])
                         print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
@@ -197,7 +199,7 @@ async def process_event(event, worker_agent, donna):
             # Step 4: Handle each reminder based on its status
             active_recurring_ids = []
             for reminder_obj in recurring_reminders:
-                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'], simulation_timestamp)
                 if is_active:
                     active_recurring_ids.append(reminder_obj['id'])
                     print(f"  ✓ Updated next trigger for recurring reminder: {reminder_obj['reminder_name']}")
@@ -229,7 +231,7 @@ async def process_event(event, worker_agent, donna):
         if "Chat not found" in str(e):
             active_recurring_ids = []
             for reminder_obj in reminders.get('recurring', []):
-                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'])
+                is_active = update_next_trigger(reminder_obj['id'], reminder_obj['recurrence_rule'], simulation_timestamp)
                 if is_active:
                     active_recurring_ids.append(reminder_obj['id'])
                 else:

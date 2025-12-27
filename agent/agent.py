@@ -153,6 +153,7 @@ class Agent:
         self._current_is_mpim = is_mpim
         self._current_thread_ts = thread_ts
         self._current_reply_ts = reply_ts
+        self._current_timestamp = timestamp
         
         # 1. Create and Store User Message
         user_message_obj = self._create_user_message(
@@ -426,6 +427,8 @@ class Agent:
                     if function_name == "invoke_worker_agent":
                         function_args["user_id"] = user_id
                         function_args["user_timezone"] = user_timezone
+                        if hasattr(self, '_current_timestamp') and self._current_timestamp:
+                            function_args["timestamp"] = self._current_timestamp
                     elif function_name == "send_message_to_user":
                         function_args["user_id"] = user_id
                         # Inject MPIM thread context if available
