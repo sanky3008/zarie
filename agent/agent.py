@@ -149,12 +149,6 @@ class Agent:
         # Use UTC timezone-aware datetime if no timestamp provided
         timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
         
-        # Store current thread context for tool injection
-        self._current_is_mpim = is_mpim
-        self._current_thread_ts = thread_ts
-        self._current_reply_ts = reply_ts
-        self._current_timestamp = timestamp
-        
         # 1. Create and Store User Message
         user_message_obj = self._create_user_message(
             message=message, 
@@ -180,7 +174,15 @@ class Agent:
         
         # Stream responses from ReAct loop
         import asyncio
-        async for chunk in self._react_loop_streaming(messages, user_id, user_timezone):
+        async for chunk in self._react_loop_streaming(
+            messages, 
+            user_id, 
+            user_timezone, 
+            timestamp=timestamp,
+            is_mpim=is_mpim,
+            thread_ts=thread_ts,
+            reply_ts=reply_ts
+        ):
             yield chunk
             await asyncio.sleep(0.5)  # 500ms delay between chunks for natural pacing
     
@@ -371,7 +373,8 @@ class Agent:
         
         return "\n".join(formatted_lines)
     
-    async def _react_loop_streaming(self, messages, user_id, user_timezone='Asia/Kolkata'):
+    async def _react_loop_streaming(self, messages, user_id, user_timezone='Asia/Kolkata', 
+                                  timestamp=None, is_mpim=False, thread_ts=None, reply_ts=None):
         """Run ReAct loop, yielding text chunks on \\n\\n boundaries and executing tool calls."""
         while True:
             # DEBUG: Save context to file before LLM call
@@ -427,17 +430,17 @@ class Agent:
                     if function_name == "invoke_worker_agent":
                         function_args["user_id"] = user_id
                         function_args["user_timezone"] = user_timezone
-                        if hasattr(self, '_current_timestamp') and self._current_timestamp:
-                            function_args["timestamp"] = self._current_timestamp
+                        if timestamp:
+                            function_args["timestamp"] = timestamp
                     elif function_name == "send_message_to_user":
                         function_args["user_id"] = user_id
                         # Inject MPIM thread context if available
-                        if hasattr(self, '_current_is_mpim') and self._current_is_mpim:
+                        if is_mpim:
                             function_args["is_mpim"] = True
-                            if hasattr(self, '_current_reply_ts') and self._current_reply_ts:
-                                function_args["thread_ts"] = self._current_reply_ts
-                            elif hasattr(self, '_current_thread_ts') and self._current_thread_ts:
-                                function_args["thread_ts"] = self._current_thread_ts
+                            if reply_ts:
+                                function_args["thread_ts"] = reply_ts
+                            elif thread_ts:
+                                function_args["thread_ts"] = thread_ts
                     
                     # Execute the tool function (handle both sync and async)
                     if function_name in self.tool_functions:

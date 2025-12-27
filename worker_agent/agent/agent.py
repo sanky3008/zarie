@@ -173,9 +173,9 @@ class WorkerAgent:
         # Ensure tools are initialized
         await self._ensure_tools_initialized()
         
-        # Store current session info
-        self.agent_name = agent_name
-        self.user_id = user_id
+        # Store current session info - REMOVED to fix race condition (stateless)
+        # self.agent_name = agent_name
+        # self.user_id = user_id
         
         # Use UTC timezone-aware datetime if no timestamp provided
         timestamp = timestamp or datetime.now(ZoneInfo("UTC"))
