@@ -12,3 +12,6 @@ fastmcp
 aiohttp>=3.9.0
 slack_bolt>=1.18.0
 slack_sdk>=3.27.0
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-api-python-client>=2.100.0

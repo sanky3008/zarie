@@ -35,7 +35,26 @@ def _migrate_db(conn, db_type):
                 conn.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
-        # Don't raise, might be concurrent access or already exists
+        conn.rollback()
+
+    try:
+        # Create google_credentials table if not exists
+        create_query = """
+            CREATE TABLE IF NOT EXISTS google_credentials (
+                user_id TEXT PRIMARY KEY,
+                access_token TEXT,
+                refresh_token TEXT,
+                token_uri TEXT,
+                client_id TEXT,
+                client_secret TEXT,
+                scopes TEXT,
+                expiry TEXT
+            );
+        """
+        cursor.execute(create_query)
+        conn.commit()
+    except Exception as e:
+        print(f"Migration warning (google_creds): {e}")
         conn.rollback()
 
 
@@ -218,5 +237,84 @@ def set_user_blocked(telegram_id: str, blocked: bool = True) -> bool:
         print(f"Error setting user blocked status: {e}")
         conn.rollback()
         return False
+    finally:
+        conn.close()
+
+
+def store_google_credentials(user_id: str, creds_data: dict) -> bool:
+    """
+    Store Google OAuth credentials for a user.
+    creds_data should contain: token, refresh_token, token_uri, client_id, client_secret, scopes, expiry
+    """
+    conn, db_type = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Convert scopes list to string if needed
+        scopes = creds_data.get('scopes')
+        if isinstance(scopes, list):
+            scopes = ','.join(scopes)
+            
+        if db_type == 'postgres':
+            cursor.execute("""
+                INSERT INTO google_credentials (user_id, access_token, refresh_token, token_uri, client_id, client_secret, scopes, expiry)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE
+                SET access_token = EXCLUDED.access_token,
+                    refresh_token = EXCLUDED.refresh_token,
+                    token_uri = EXCLUDED.token_uri,
+                    client_id = EXCLUDED.client_id,
+                    client_secret = EXCLUDED.client_secret,
+                    scopes = EXCLUDED.scopes,
+                    expiry = EXCLUDED.expiry
+            """, (user_id, creds_data.get('token'), creds_data.get('refresh_token'), 
+                  creds_data.get('token_uri'), creds_data.get('client_id'), 
+                  creds_data.get('client_secret'), scopes, creds_data.get('expiry')))
+        else:
+            # SQLite upsert
+            cursor.execute("""
+                INSERT OR REPLACE INTO google_credentials (user_id, access_token, refresh_token, token_uri, client_id, client_secret, scopes, expiry)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, creds_data.get('token'), creds_data.get('refresh_token'), 
+                  creds_data.get('token_uri'), creds_data.get('client_id'), 
+                  creds_data.get('client_secret'), scopes, creds_data.get('expiry')))
+            
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error storing Google credentials: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def get_google_credentials(user_id: str):
+    """
+    Retrieve Google OAuth credentials for a user.
+    Returns a dict compatible with google.oauth2.credentials.Credentials
+    """
+    conn, db_type = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        query = "SELECT access_token, refresh_token, token_uri, client_id, client_secret, scopes, expiry FROM google_credentials WHERE user_id = %s" if db_type == 'postgres' else "SELECT access_token, refresh_token, token_uri, client_id, client_secret, scopes, expiry FROM google_credentials WHERE user_id = ?"
+        cursor.execute(query, (user_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            return {
+                'token': row[0],
+                'refresh_token': row[1],
+                'token_uri': row[2],
+                'client_id': row[3],
+                'client_secret': row[4],
+                'scopes': row[5].split(',') if row[5] else [],
+                'expiry': row[6]
+            }
+        return None
+    except Exception as e:
+        print(f"Error retrieving Google credentials: {e}")
+        return None
     finally:
         conn.close()

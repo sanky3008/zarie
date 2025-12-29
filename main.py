@@ -24,7 +24,7 @@ async def main():
     # slack_bot.start() runs the socket mode handler (blocking)
     
     await telegram_bot.start()
-    await slack_bot.start()
+    await slack_bot.start() # This blocks until stop signal
 
 if __name__ == "__main__":
     try:

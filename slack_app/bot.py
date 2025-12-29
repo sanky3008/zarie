@@ -368,10 +368,18 @@ class SlackBot:
     async def start(self):
         """Start the Slack bot (HTTP Server for Events + OAuth)."""
         print("Starting Slack HTTP Server on port 3000...")
+        
+        # Import Google OAuth handlers
+        from oauth_server import handle_login, handle_oauth_callback
+        
         app = web.Application()
         app.router.add_post("/slack/events", self.handler.handle)
         app.router.add_get("/slack/install", self.handler.handle_oauth)
         app.router.add_get("/slack/oauth_redirect", self.handler.handle_oauth)
+        
+        # Add Google OAuth routes
+        app.router.add_get("/google/login", handle_login)
+        app.router.add_get("/google/callback", handle_oauth_callback)
 
         runner = web.AppRunner(app)
         await runner.setup()
