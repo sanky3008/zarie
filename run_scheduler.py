@@ -250,12 +250,15 @@ async def process_event(event, worker_agent, donna, simulation_timestamp=None):
 
 async def process_user_events(events, worker_agent, donna):
     """Process multiple events for a single user sequentially to avoid race conditions"""
+    # CRITICAL FIX: Lock ALL events immediately before processing to prevent race conditions
+    # If we don't do this, the first event processing might take >60s (scheduler interval),
+    # causing the next tick to pick up the 2nd event as 'ACTIVE', running parallel/duplicate flows.
     for event in events:
-        # Lock all event IDs (both recurring and non-recurring) to prevent reprocessing
         for reminder_obj in event['reminders'].get('recurring', []) + event['reminders'].get('non_recurring', []):
             update_event_status(reminder_obj['id'], 'PROCESSING')
-        
-        # Process event sequentially for this user
+            
+    # Now process sequentially safely
+    for event in events:
         await process_event(event, worker_agent, donna)
 
 async def check_and_process_events(worker_agent, donna):
