@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager
+from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager, gmail_read_emails, calendar_get_events, calendar_create_event
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
@@ -40,7 +40,10 @@ class WorkerAgent:
         self.tools_initialized = False
         self.tool_functions = {
             "set_time_event": set_time_event,
-            "delete_time_event": delete_time_event
+            "delete_time_event": delete_time_event,
+            "gmail_read_emails": gmail_read_emails,
+            "calendar_get_events": calendar_get_events,
+            "calendar_create_event": calendar_create_event
         }
     
     async def _ensure_tools_initialized(self):
@@ -154,7 +157,91 @@ class WorkerAgent:
                 }
             }
         )
-        
+
+        # Add Google Calendar & Gmail tools
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "gmail_read_emails",
+                    "description": "Read recent emails from the user's Gmail. Requires user to have connected their Google account.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "count": {
+                                "type": "integer",
+                                "description": "Number of emails to retrieve (default 5)"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "Gmail search query (e.g., 'is:unread', 'from:boss@company.com', 'subject:meeting')"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            }
+        )
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "calendar_get_events",
+                    "description": "Get upcoming calendar events from the user's Google Calendar. Requires user to have connected their Google account.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "count": {
+                                "type": "integer",
+                                "description": "Maximum number of events to return (default 5)"
+                            },
+                            "time_min": {
+                                "type": "string",
+                                "description": "Start time in ISO format to fetch events from (default: now)"
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            }
+        )
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "calendar_create_event",
+                    "description": "Create a new event on the user's primary Google Calendar. Requires user to have connected their Google account.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {
+                                "type": "string",
+                                "description": "Title of the event"
+                            },
+                            "start_time": {
+                                "type": "string",
+                                "description": "Start time in ISO format (e.g., 2025-01-15T14:00:00+05:30)"
+                            },
+                            "end_time": {
+                                "type": "string",
+                                "description": "End time in ISO format (e.g., 2025-01-15T15:00:00+05:30)"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Optional description for the event"
+                            },
+                            "attendees": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional list of email addresses to invite as attendees"
+                            }
+                        },
+                        "required": ["summary", "start_time", "end_time"]
+                    }
+                }
+            }
+        )
+
         return tools
     
     def _create_mcp_tool_wrapper(self, tool_name):
@@ -333,6 +420,8 @@ class WorkerAgent:
                         function_args["agent_name"] = agent_name
                         function_args["user_id"] = user_id
                         function_args["user_timezone"] = user_timezone
+                    elif function_name in ["gmail_read_emails", "calendar_get_events", "calendar_create_event"]:
+                        function_args["user_id"] = user_id
                     
                     # Execute the tool function (handle both sync and async)
                     if function_name in self.tool_functions:

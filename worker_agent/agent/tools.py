@@ -204,28 +204,28 @@ def set_time_event(agent_name: str, user_id: str, next_trigger_timestamp: str,
 def delete_time_event(agent_name: str, user_id: str, reminder_name: str, user_timezone: str = None):
     """
     Delete (disable) a time event/reminder.
-    
+
     Args:
         agent_name: Name of the agent
         user_id: User ID
         reminder_name: Name of the reminder to delete
-        
+
     Returns:
         str: Success message
     """
     conn, db_type, sqlite_lock = get_db_connection()
-    
+
     try:
         # Use lock for SQLite operations
         if db_type == 'sqlite' and sqlite_lock:
             with sqlite_lock:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    UPDATE time_events 
+                    UPDATE time_events
                     SET status = 'DISABLED'
                     WHERE agent_name = ? AND user_id = ? AND reminder_name = ?
                 """, (agent_name, user_id, reminder_name))
-                
+
                 if cursor.rowcount > 0:
                     conn.commit()
                     return f"Time event '{reminder_name}' deleted successfully"
@@ -235,22 +235,149 @@ def delete_time_event(agent_name: str, user_id: str, reminder_name: str, user_ti
             # PostgreSQL
             cursor = conn.cursor()
             cursor.execute("""
-                UPDATE time_events 
+                UPDATE time_events
                 SET status = 'DISABLED'
                 WHERE agent_name = %s AND user_id = %s AND reminder_name = %s
             """, (agent_name, user_id, reminder_name))
-            
+
             if cursor.rowcount > 0:
                 conn.commit()
                 return f"Time event '{reminder_name}' deleted successfully"
             else:
                 return f"Time event '{reminder_name}' not found"
-            
+
     except Exception as e:
         if db_type == 'postgres':
             conn.rollback()
         return f"Error deleting time event: {str(e)}"
     finally:
         return_db_connection(conn, db_type)
+
+
+# ============================================
+# Google Calendar & Gmail Tools
+# ============================================
+
+def gmail_read_emails(user_id: str, count: int = 5, query: str = None):
+    """
+    Read recent emails from the user's Gmail.
+
+    Args:
+        user_id (str): The user's ID.
+        count (int): Number of emails to retrieve.
+        query (str): Gmail search query (e.g., 'is:unread', 'from:boss').
+    Returns:
+        str: Formatted list of emails.
+    """
+    from google_oauth_handler import get_google_service
+    service = get_google_service(user_id, 'gmail', 'v1')
+    if not service:
+        return "Error: Could not authenticate with Google. Please use generate_google_auth_link first."
+
+    try:
+        q = query if query else ""
+        results = service.users().messages().list(userId='me', maxResults=count, q=q).execute()
+        messages = results.get('messages', [])
+
+        if not messages:
+            return "No emails found."
+
+        output = []
+        for msg in messages:
+            msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
+            snippet = msg_data.get('snippet', '')
+            payload = msg_data.get('payload', {})
+            headers = payload.get('headers', [])
+
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '(No Subject)')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), '(Unknown)')
+
+            output.append(f"- From: {sender}\n  Subject: {subject}\n  Snippet: {snippet}\n")
+
+        return "\n".join(output)
+    except Exception as e:
+        return f"Error reading emails: {str(e)}"
+
+
+def calendar_get_events(user_id: str, count: int = 5, time_min: str = None):
+    """
+    Get upcoming calendar events.
+
+    Args:
+        user_id (str): User ID.
+        count (int): Max events.
+        time_min (str): Start time in ISO format (default: now).
+    Returns:
+        str: List of events.
+    """
+    from google_oauth_handler import get_google_service
+
+    service = get_google_service(user_id, 'calendar', 'v3')
+    if not service:
+        return "Error: Could not authenticate with Google."
+
+    try:
+        now = datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+        t_min = time_min if time_min else now
+
+        events_result = service.events().list(calendarId='primary', timeMin=t_min,
+                                              maxResults=count, singleEvents=True,
+                                              orderBy='startTime').execute()
+        events = events_result.get('items', [])
+
+        if not events:
+            return "No upcoming events found."
+
+        output = []
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            summary = event.get('summary', '(No Title)')
+            output.append(f"- {start}: {summary}")
+
+        return "\n".join(output)
+    except Exception as e:
+        return f"Error getting events: {str(e)}"
+
+
+def calendar_create_event(user_id: str, summary: str, start_time: str, end_time: str, description: str = None, attendees: list = None):
+    """
+    Create a new event on the user's primary calendar.
+
+    Args:
+        user_id (str): User ID.
+        summary (str): Title of event.
+        start_time (str): ISO format start time.
+        end_time (str): ISO format end time.
+        description (str): Optional description.
+        attendees (list): Optional list of email strings for participants.
+    Returns:
+        str: Confirmation.
+    """
+    from google_oauth_handler import get_google_service
+    service = get_google_service(user_id, 'calendar', 'v3')
+    if not service:
+        return "Error: Could not authenticate with Google."
+
+    try:
+        event = {
+            'summary': summary,
+            'description': description,
+            'start': {
+                'dateTime': start_time,
+                'timeZone': 'UTC',
+            },
+            'end': {
+                'dateTime': end_time,
+                'timeZone': 'UTC',
+            },
+        }
+
+        if attendees:
+            event['attendees'] = [{'email': email} for email in attendees]
+
+        event_result = service.events().insert(calendarId='primary', body=event).execute()
+        return f"Event created: {event_result.get('htmlLink')}"
+    except Exception as e:
+        return f"Error creating event: {str(e)}"
 
 

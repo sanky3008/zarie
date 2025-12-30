@@ -6,11 +6,6 @@ import os
 # Scopes required for the application
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.send', # Plan said remove send? Wait, user asked to remove tool, but scopes? 
-    # Logic: If we remove the tool, we might not need the scope. 
-    # BUT, strict adherence to plan: "User Review Required: Scopes: Add gmail.readonly, calendar".
-    # Implementation plan says: "Scopes: Add https://www.googleapis.com/auth/gmail.readonly, https://www.googleapis.com/auth/calendar".
-    # I should stick to the plan.
     'https://www.googleapis.com/auth/calendar'
 ]
 
