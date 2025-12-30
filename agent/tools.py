@@ -206,3 +206,142 @@ async def send_message_to_user(user_id: str, message: str, thread_ts: str = None
         except Exception as e:
             return f"Error sending message to Telegram: {str(e)}"
 
+
+def generate_google_auth_link(user_id: str):
+    """
+    Generate a link for the user to connect their Google account.
+    
+    Args:
+        user_id (str): The user's ID (injected automatically).
+    Returns:
+        str: The authorization URL.
+    """
+    try:
+        from google_oauth_handler import get_authorization_url
+        return get_authorization_url(user_id)
+    except Exception as e:
+        return f"Error generating link: {str(e)}"
+
+
+def gmail_read_emails(user_id: str, count: int = 5, query: str = None):
+    """
+    Read recent emails from the user's Gmail.
+    
+    Args:
+        user_id (str): The user's ID.
+        count (int): Number of emails to retrieve.
+        query (str): Gmail search query (e.g., 'is:unread', 'from:boss').
+    Returns:
+        str: Formatted list of emails.
+    """
+    from google_oauth_handler import get_google_service
+    service = get_google_service(user_id, 'gmail', 'v1')
+    if not service:
+        return "Error: Could not authenticate with Google. Please use generate_google_auth_link first."
+        
+    try:
+        q = query if query else ""
+        results = service.users().messages().list(userId='me', maxResults=count, q=q).execute()
+        messages = results.get('messages', [])
+        
+        if not messages:
+            return "No emails found."
+            
+        output = []
+        for msg in messages:
+            msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
+            snippet = msg_data.get('snippet', '')
+            payload = msg_data.get('payload', {})
+            headers = payload.get('headers', [])
+            
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '(No Subject)')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), '(Unknown)')
+            
+            output.append(f"- From: {sender}\n  Subject: {subject}\n  Snippet: {snippet}\n")
+            
+        return "\n".join(output)
+    except Exception as e:
+        return f"Error reading emails: {str(e)}"
+
+
+def calendar_get_events(user_id: str, count: int = 5, time_min: str = None):
+    """
+    Get upcoming calendar events.
+    
+    Args:
+        user_id (str): User ID.
+        count (int): Max events.
+        time_min (str): Start time in ISO format (default: now).
+    Returns:
+        str: List of events.
+    """
+    from google_oauth_handler import get_google_service
+    import datetime
+    
+    service = get_google_service(user_id, 'calendar', 'v3')
+    if not service:
+        return "Error: Could not authenticate with Google."
+        
+    try:
+        now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+        t_min = time_min if time_min else now
+        
+        events_result = service.events().list(calendarId='primary', timeMin=t_min,
+                                              maxResults=count, singleEvents=True,
+                                              orderBy='startTime').execute()
+        events = events_result.get('items', [])
+        
+        if not events:
+            return "No upcoming events found."
+            
+        output = []
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            summary = event.get('summary', '(No Title)')
+            output.append(f"- {start}: {summary}")
+            
+        return "\n".join(output)
+    except Exception as e:
+        return f"Error getting events: {str(e)}"
+
+
+def calendar_create_event(user_id: str, summary: str, start_time: str, end_time: str, description: str = None, attendees: list = None):
+    """
+    Create a new event on the user's primary calendar.
+    
+    Args:
+        user_id (str): User ID.
+        summary (str): Title of event.
+        start_time (str): ISO format start time.
+        end_time (str): ISO format end time.
+        description (str): Optional description.
+        attendees (list): Optional list of email strings for participants.
+    Returns:
+        str: Confirmation.
+    """
+    from google_oauth_handler import get_google_service
+    service = get_google_service(user_id, 'calendar', 'v3')
+    if not service:
+        return "Error: Could not authenticate with Google."
+        
+    try:
+        event = {
+            'summary': summary,
+            'description': description,
+            'start': {
+                'dateTime': start_time,
+                'timeZone': 'UTC', # Assuming input is UTC ISO or offset aware
+            },
+            'end': {
+                'dateTime': end_time,
+                'timeZone': 'UTC',
+            },
+        }
+        
+        if attendees:
+            event['attendees'] = [{'email': email} for email in attendees]
+            
+        event_result = service.events().insert(calendarId='primary', body=event).execute()
+        return f"Event created: {event_result.get('htmlLink')}"
+    except Exception as e:
+        return f"Error creating event: {str(e)}"

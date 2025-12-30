@@ -79,3 +79,6 @@ evals/*/*/*
 
 # DeepEval
 .deepeval/
+
+# Solutions directory (internal brainstorming/planning)
+solutions/
