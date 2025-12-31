@@ -7,7 +7,7 @@ from slack_bolt.app.async_app import AsyncApp
 from slack_bolt.adapter.aiohttp import to_bolt_request, to_aiohttp_response
 from slack_bolt.oauth.async_oauth_settings import AsyncOAuthSettings
 from agent.agent import Agent
-from user_manager import create_or_update_user, get_user
+from user_manager import create_or_update_user, get_user, set_user_welcomed
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from .store import CustomInstallationStore
@@ -161,6 +161,15 @@ class SlackBot:
             # Only send welcome if it's the Messages tab
             if event.get("tab") == "messages":
                 try:
+                    # Ensure user exists in DB
+                    team_id = body.get("team_id")
+                    await self._ensure_user_updated(client, user_id, team_id)
+                    
+                    # Check if already welcomed
+                    user = get_user(user_id)
+                    if user and user.get('has_welcomed'):
+                        return
+
                     await client.chat_postMessage(
                         channel=user_id,
                         text="👋 Hey! I'm Zarie, your AI personal assistant.\n\n"
@@ -172,6 +181,9 @@ class SlackBot:
                              "Just message me naturally - ask me anything!\n\n"
                              "Need support or have feedback? Email sanky@zarie.chat"
                     )
+                    
+                    # Mark as welcomed
+                    set_user_welcomed(user_id)
                 except Exception as e:
                     logger.error(f"Error sending welcome message: {e}")
 

@@ -38,6 +38,30 @@ def _migrate_db(conn, db_type):
         conn.rollback()
 
     try:
+        # Check for has_welcomed column
+        if db_type == 'postgres':
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='users' AND column_name='has_welcomed';
+            """)
+            if not cursor.fetchone():
+                print("Migrating DB: Adding has_welcomed column (Postgres)...")
+                cursor.execute("ALTER TABLE users ADD COLUMN has_welcomed BOOLEAN DEFAULT FALSE;")
+                conn.commit()
+        else:
+            # SQLite
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if 'has_welcomed' not in columns:
+                print("Migrating DB: Adding has_welcomed column (SQLite)...")
+                cursor.execute("ALTER TABLE users ADD COLUMN has_welcomed INTEGER DEFAULT 0")
+                conn.commit()
+    except Exception as e:
+        print(f"Migration warning (has_welcomed): {e}")
+        conn.rollback()
+
+    try:
         # Create google_credentials table if not exists
         create_query = """
             CREATE TABLE IF NOT EXISTS google_credentials (
@@ -169,7 +193,7 @@ def get_user(telegram_id: str):
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone FROM users WHERE telegram_id = ?", (telegram_id,))
+        cursor.execute("SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone, has_welcomed FROM users WHERE telegram_id = %s" if db_type == 'postgres' else "SELECT id, telegram_id, name, telegram_username, created_at, has_zarie, platform, team_id, timezone, has_welcomed FROM users WHERE telegram_id = ?", (telegram_id,))
         result = cursor.fetchone()
         
         if result:
@@ -185,7 +209,8 @@ def get_user(telegram_id: str):
                     'has_zarie': result[5],
                     'platform': result[6],
                     'team_id': result[7],
-                    'timezone': timezone_val
+                    'timezone': timezone_val,
+                    'has_welcomed': result[9] if len(result) > 9 else False
                 }
             else:
                 return {
@@ -197,7 +222,8 @@ def get_user(telegram_id: str):
                     'has_zarie': bool(result[5]), # SQLite stores booleans as 0/1
                     'platform': result[6],
                     'team_id': result[7],
-                    'timezone': timezone_val
+                    'timezone': timezone_val,
+                    'has_welcomed': bool(result[9]) if len(result) > 9 else False
                 }
         return None
     except Exception as e:
@@ -235,6 +261,31 @@ def set_user_blocked(telegram_id: str, blocked: bool = True) -> bool:
         return True
     except Exception as e:
         print(f"Error setting user blocked status: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+
+def set_user_welcomed(telegram_id: str) -> bool:
+    """
+    Mark a user as having received the welcome message.
+    """
+    conn, db_type = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        val = True if db_type == 'postgres' else 1
+        
+        if db_type == 'postgres':
+            cursor.execute("UPDATE users SET has_welcomed = %s WHERE telegram_id = %s", (val, telegram_id))
+        else:
+            cursor.execute("UPDATE users SET has_welcomed = ? WHERE telegram_id = ?", (val, telegram_id))
+            
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error setting user has_welcomed: {e}")
         conn.rollback()
         return False
     finally:

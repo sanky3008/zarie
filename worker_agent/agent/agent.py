@@ -379,7 +379,7 @@ class WorkerAgent:
         while True:
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
-                model="openrouter/deepseek/deepseek-v3.2",
+                model="openrouter/deepseek/deepseek-chat",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",

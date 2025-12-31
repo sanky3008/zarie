@@ -126,6 +126,7 @@ class State:
                     cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS thread_ts TEXT")
                     cursor.execute("ALTER TABLE chats_context ADD COLUMN IF NOT EXISTS slack_ts TEXT")
                     cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type TEXT DEFAULT 'user'")
+                    cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_welcomed BOOLEAN DEFAULT FALSE")
                     
                     cursor.execute("""
                         CREATE INDEX IF NOT EXISTS idx_chats_context_thread 
@@ -205,6 +206,8 @@ class State:
                 user_cols = [col[1] for col in self.cursor.fetchall()]
                 if 'user_type' not in user_cols:
                     self.cursor.execute("ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user'")
+                if 'has_welcomed' not in user_cols:
+                    self.cursor.execute("ALTER TABLE users ADD COLUMN has_welcomed INTEGER DEFAULT 0")
                 
                 self.cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_chats_context_thread 
