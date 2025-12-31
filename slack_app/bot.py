@@ -152,6 +152,29 @@ class SlackBot:
             elif channel_type in ["mpim", "group"]:
                 await self._handle_mpim_message(body, event, client, logger)
 
+        @self.app.event("app_home_opened")
+        async def handle_app_home_opened(body, client, logger):
+            """Send welcome message when user first opens Messages tab."""
+            event = body.get("event", {})
+            user_id = event.get("user")
+
+            # Only send welcome if it's the Messages tab
+            if event.get("tab") == "messages":
+                try:
+                    await client.chat_postMessage(
+                        channel=user_id,
+                        text="👋 Hey! I'm Zarie, your AI personal assistant.\n\n"
+                             "I can help you with:\n"
+                             "• Managing your calendar and avoiding scheduling conflicts\n"
+                             "• Checking your emails and sending summaries\n"
+                             "• Setting reminders and recurring tasks\n"
+                             "• Automating workflows\n\n"
+                             "Just message me naturally - ask me anything!\n\n"
+                             "Need support or have feedback? Email sanky@zarie.chat"
+                    )
+                except Exception as e:
+                    logger.error(f"Error sending welcome message: {e}")
+
     async def _handle_dm_message(self, body, event, client, logger):
         """Handle 1:1 Direct Message."""
         user_id = event.get("user")

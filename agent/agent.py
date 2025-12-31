@@ -10,7 +10,7 @@ from agent.tools import invoke_worker_agent, get_mcp_client_manager, send_messag
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
-if os.getenv("LITELLM_DEBUG").lower() == "true":
+if os.getenv("LITELLM_DEBUG", "").lower() == "true":
     litellm._turn_on_debug()
 
 from agent.tools import (
@@ -468,7 +468,7 @@ class Agent:
 
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
-                model="deepseek/deepseek-chat",
+                model="openrouter/deepseek/deepseek-chat",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",

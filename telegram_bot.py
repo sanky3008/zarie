@@ -154,7 +154,7 @@ class TelegramBot:
 
     async def start(self):
         """Start the Telegram bot in async mode (non-blocking)."""
-        app = Application.builder().token(self.token).concurrent_updates(True).build()
+        app = Application.builder().token(self.token).concurrent_updates(True).connect_timeout(30.0).read_timeout(30.0).write_timeout(30.0).build()
         self.register_handlers(app)
         
         await app.initialize()
@@ -175,7 +175,7 @@ class TelegramBot:
 
     def run(self):
         """Start the Telegram bot (blocking)."""
-        app = Application.builder().token(self.token).concurrent_updates(True).build()
+        app = Application.builder().token(self.token).concurrent_updates(True).connect_timeout(30.0).read_timeout(30.0).write_timeout(30.0).build()
         self.register_handlers(app)
         
         print("Telegram bot is running...")
