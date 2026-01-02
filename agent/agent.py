@@ -468,13 +468,15 @@ class Agent:
 
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
-                model="openrouter/deepseek/deepseek-chat",
+                model="openrouter/deepseek/deepseek-v3.2",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",
                 fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Fallback to Together AI if primary fails
                 timeout=30,
-                num_retries=2
+                num_retries=2,
+                temperature=0.0
+                # top_p=0.95
             )
             
             assistant_msg = response.choices[0].message
@@ -559,7 +561,7 @@ class Agent:
                 continue
             else:
                 # No tool calls - stream text response
-                content = assistant_msg.content.replace('**', '')
+                content = assistant_msg.content.replace('**', '').replace('#', '')
                 
                 # Yield the full content
                 if content.strip():

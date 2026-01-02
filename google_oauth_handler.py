@@ -41,7 +41,6 @@ def get_authorization_url(user_id: str):
     # Pass user_id in state to identify them on callback
     authorization_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true',
         state=user_id,
         prompt='consent' # Force consent to get refresh token
     )
