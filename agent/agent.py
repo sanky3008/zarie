@@ -472,7 +472,7 @@ class Agent:
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",
-                fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Fallback to Together AI if primary fails
+                # fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Removed per user request
                 timeout=30,
                 num_retries=2,
                 temperature=0.0
