@@ -468,7 +468,7 @@ class Agent:
 
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
-                model="openrouter/deepseek/deepseek-v3.2",
+                model="deepinfra/deepseek-ai/DeepSeek-V3.1",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",
