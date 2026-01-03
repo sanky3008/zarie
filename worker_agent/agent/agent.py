@@ -383,6 +383,7 @@ class WorkerAgent:
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",
+                max_tokens=1024,
                 # fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Removed per user request
                 timeout=30,
                 num_retries=2,
