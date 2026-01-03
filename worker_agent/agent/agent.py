@@ -379,7 +379,7 @@ class WorkerAgent:
         while True:
             # Call LLM with tools using async completion
             response = await litellm.acompletion(
-                model="deepinfra/deepseek-ai/DeepSeek-V3.2",
+                model="gemini/gemini-2.5-flash",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto",
@@ -387,8 +387,8 @@ class WorkerAgent:
                 # fallbacks=["together_ai/deepseek-ai/DeepSeek-V3"],  # Removed per user request
                 timeout=30,
                 num_retries=2,
-                temperature=0.6,
-                top_p=0.95
+                # temperature=0.6,
+                # top_p=0.95
             )
             
             assistant_msg = response.choices[0].message

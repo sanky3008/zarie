@@ -846,7 +846,7 @@ Output ONLY the complete JSON object following <json_output_schema>. Ensure the 
     # 3. Call Gemini
     try:
         response = await litellm.acompletion(
-            model="gemini/gemini-3-pro-preview",
+            model="gemini/gemini-2.5-flash",
             messages=[{"role": "user", "content": prompt}]
         )
         
