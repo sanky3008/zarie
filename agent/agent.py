@@ -566,6 +566,19 @@ class Agent:
                 
                 # Yield the full content
                 if content.strip():
+                    # Robust check for No_Response_Needed token (Centralized Guard)
+                    # Normalize: lowercase, remove spaces, underscores, backslashes, asterisks, backticks
+                    normalized_content = content.lower().replace("_", "").replace(" ", "").replace("\\", "").replace("*", "").replace("`", "")
+                    
+                    if "noresponseneeded" in normalized_content:
+                        # Store as hidden thought but DO NOT yield to user
+                        thread_ts = getattr(self, '_current_thread_ts', None)
+                        self.state.add_context(user_id, {
+                            "role": "assistant",
+                            "content": content
+                        }, thread_ts=thread_ts)
+                        return
+
                     yield content
                 
                 # Store complete assistant response in state

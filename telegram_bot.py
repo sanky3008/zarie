@@ -73,7 +73,9 @@ class TelegramBot:
             ):
                 # Send each chunk as a separate message
                 if chunk.strip():
-                    if "No_Response_Needed" in chunk:
+                    # Robust check for No_Response_Needed token
+                    normalized_chunk = chunk.lower().replace("_", "").replace(" ", "").replace("\\", "").replace("*", "").replace("`", "")
+                    if "noresponseneeded" in normalized_chunk:
                         has_response = True
                         continue
                     await update.message.reply_text(chunk)

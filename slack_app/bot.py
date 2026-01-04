@@ -329,7 +329,10 @@ class SlackBot:
                 reply_ts=reply_thread_ts
             ):
                 if chunk.strip():
-                    if "No_Response_Needed" in chunk:
+                    # Robust check for No_Response_Needed token
+                    # Normalize: lowercase, remove spaces, underscores, backslashes, asterisks, backticks
+                    normalized_chunk = chunk.lower().replace("_", "").replace(" ", "").replace("\\", "").replace("*", "").replace("`", "")
+                    if "noresponseneeded" in normalized_chunk:
                         has_response = True
                         continue
                     
