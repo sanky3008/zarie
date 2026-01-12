@@ -210,7 +210,7 @@ async def send_message_to_user(user_id: str, message: str, thread_ts: str = None
 def generate_google_auth_link(user_id: str):
     """
     Generate a link for the user to connect their Google account.
-    
+
     Args:
         user_id (str): The user's ID (injected automatically).
     Returns:
@@ -221,47 +221,6 @@ def generate_google_auth_link(user_id: str):
         return get_authorization_url(user_id)
     except Exception as e:
         return f"Error generating link: {str(e)}"
-
-
-def gmail_read_emails(user_id: str, count: int = 5, query: str = None):
-    """
-    Read recent emails from the user's Gmail.
-    
-    Args:
-        user_id (str): The user's ID.
-        count (int): Number of emails to retrieve.
-        query (str): Gmail search query (e.g., 'is:unread', 'from:boss').
-    Returns:
-        str: Formatted list of emails.
-    """
-    from google_oauth_handler import get_google_service
-    service = get_google_service(user_id, 'gmail', 'v1')
-    if not service:
-        return "Error: Could not authenticate with Google. Please use generate_google_auth_link first."
-        
-    try:
-        q = query if query else ""
-        results = service.users().messages().list(userId='me', maxResults=count, q=q).execute()
-        messages = results.get('messages', [])
-        
-        if not messages:
-            return "No emails found."
-            
-        output = []
-        for msg in messages:
-            msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
-            snippet = msg_data.get('snippet', '')
-            payload = msg_data.get('payload', {})
-            headers = payload.get('headers', [])
-            
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '(No Subject)')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), '(Unknown)')
-            
-            output.append(f"- From: {sender}\n  Subject: {subject}\n  Snippet: {snippet}\n")
-            
-        return "\n".join(output)
-    except Exception as e:
-        return f"Error reading emails: {str(e)}"
 
 
 def calendar_get_events(user_id: str, count: int = 5, time_min: str = None):

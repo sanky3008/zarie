@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager, gmail_read_emails, calendar_get_events, calendar_create_event
+from worker_agent.agent.tools import set_time_event, delete_time_event, get_mcp_client_manager, calendar_get_events, calendar_create_event
 load_dotenv()
 
 # Enable LiteLLM detailed debugging
@@ -41,7 +41,6 @@ class WorkerAgent:
         self.tool_functions = {
             "set_time_event": set_time_event,
             "delete_time_event": delete_time_event,
-            "gmail_read_emails": gmail_read_emails,
             "calendar_get_events": calendar_get_events,
             "calendar_create_event": calendar_create_event
         }
@@ -158,30 +157,7 @@ class WorkerAgent:
             }
         )
 
-        # Add Google Calendar & Gmail tools
-        tools.append(
-            {
-                "type": "function",
-                "function": {
-                    "name": "gmail_read_emails",
-                    "description": "Read recent emails from the user's Gmail. Requires user to have connected their Google account.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "count": {
-                                "type": "integer",
-                                "description": "Number of emails to retrieve (default 5)"
-                            },
-                            "query": {
-                                "type": "string",
-                                "description": "Gmail search query (e.g., 'is:unread', 'from:boss@company.com', 'subject:meeting')"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            }
-        )
+        # Add Google Calendar tools
         tools.append(
             {
                 "type": "function",
@@ -423,7 +399,7 @@ class WorkerAgent:
                         function_args["agent_name"] = agent_name
                         function_args["user_id"] = user_id
                         function_args["user_timezone"] = user_timezone
-                    elif function_name in ["gmail_read_emails", "calendar_get_events", "calendar_create_event"]:
+                    elif function_name in ["calendar_get_events", "calendar_create_event"]:
                         function_args["user_id"] = user_id
                     
                     # Execute the tool function (handle both sync and async)

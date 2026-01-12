@@ -15,7 +15,7 @@ if os.getenv("LITELLM_DEBUG", "").lower() == "true":
 
 from agent.tools import (
     invoke_worker_agent, get_mcp_client_manager, send_message_to_user,
-    generate_google_auth_link, gmail_read_emails, calendar_get_events, calendar_create_event
+    generate_google_auth_link, calendar_get_events, calendar_create_event
 )
 
 class Agent:
@@ -42,7 +42,6 @@ class Agent:
             "invoke_worker_agent": invoke_worker_agent,
             "send_message_to_user": send_message_to_user,
             "generate_google_auth_link": generate_google_auth_link,
-            "gmail_read_emails": gmail_read_emails,
             "calendar_get_events": calendar_get_events,
             "calendar_create_event": calendar_create_event
         }
@@ -127,26 +126,10 @@ class Agent:
             "type": "function",
             "function": {
                 "name": "generate_google_auth_link",
-                "description": "Generate a link for the user to connect their Google account. Use this when user asks to connect or link Gmail/Calendar.",
+                "description": "Generate a link for the user to connect their Google account. Use this when user asks to connect or link Calendar.",
                 "parameters": {
                     "type": "object",
                     "properties": {},
-                    "required": []
-                }
-            }
-        })
-
-        tools.append({
-            "type": "function",
-            "function": {
-                "name": "gmail_read_emails",
-                "description": "Read recent emails from the user's Gmail.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "count": { "type": "integer", "description": "Number of emails (default 5)" },
-                        "query": { "type": "string", "description": "Gmail search query (e.g. 'is:unread')" }
-                    },
                     "required": []
                 }
             }
@@ -521,7 +504,7 @@ class Agent:
                                 function_args["thread_ts"] = reply_ts
                             elif thread_ts:
                                 function_args["thread_ts"] = thread_ts
-                    elif function_name in ["generate_google_auth_link", "gmail_read_emails", "calendar_get_events", "calendar_create_event"]:
+                    elif function_name in ["generate_google_auth_link", "calendar_get_events", "calendar_create_event"]:
                         function_args["user_id"] = user_id
                     
                     # Execute the tool function (handle both sync and async)

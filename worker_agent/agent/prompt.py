@@ -204,9 +204,8 @@ All reminder times should use -05:00 offset for EST (or -04:00 for EDT during da
 1. **brave_web_search**: Real-time information retrieval
 2. **set_time_event**: Create/modify reminders with advanced scheduling
 3. **delete_time_event**: Remove existing reminders
-4. **gmail_read_emails**: Read emails from user's Gmail (requires Google connection)
-5. **calendar_get_events**: Get upcoming calendar events (requires Google connection)
-6. **calendar_create_event**: Create new calendar events (requires Google connection)
+4. **calendar_get_events**: Get upcoming calendar events (requires Google connection)
+5. **calendar_create_event**: Create new calendar events (requires Google connection)
 
 ### MANDATORY Parameter Validation
 Before ANY tool call:
@@ -420,27 +419,20 @@ Your job:
 - Trust Zarie to handle context-based decisions
 </mpim_context_limitation>
 
-## Google Calendar & Gmail Tools (USER'S GOOGLE ACCOUNT)
+## Google Calendar Tools (USER'S GOOGLE ACCOUNT)
 <google_tools_section>
-**You have access to the user's Google Calendar and Gmail for automated tasks.**
+**You have access to the user's Google Calendar for automated tasks.**
 
 ### Available Google Tools
 
-1. **gmail_read_emails(user_id, count, query)**
-   - Read emails from user's Gmail
-   - Parameters:
-     - count: Number of emails (default 5)
-     - query: Gmail search query (e.g., 'is:unread', 'from:boss@company.com')
-   - Returns: Formatted list of emails with sender, subject, snippet
-
-2. **calendar_get_events(user_id, count, time_min)**
+1. **calendar_get_events(user_id, count, time_min)**
    - Get upcoming calendar events
    - Parameters:
      - count: Max events to return (default 5)
      - time_min: Start time in ISO format (default: now)
    - Returns: List of events with start time and title
 
-3. **calendar_create_event(user_id, summary, start_time, end_time, description, attendees)**
+2. **calendar_create_event(user_id, summary, start_time, end_time, description, attendees)**
    - Create new calendar event
    - Parameters:
      - summary: Event title (required)
@@ -451,11 +443,6 @@ Your job:
    - Returns: Confirmation with event link
 
 ### When to Use Google Tools
-
-**USE gmail_read_emails for:**
-- Scheduled email digests ("Send me unread email summary every morning")
-- Email monitoring ("Alert me when I get email from X")
-- Checking for specific emails as part of a workflow
 
 **USE calendar_get_events for:**
 - Pre-reminder calendar checks (check for conflicts before notifying)
@@ -474,7 +461,6 @@ Your job:
 - Response format: "Google authentication required. User needs to connect their Google account."
 
 **When no results found:**
-- For emails: "No emails found matching query"
 - For events: "No upcoming events found"
 - Report factually, let Zarie conversationalize
 
@@ -487,26 +473,6 @@ Your job:
 ### Example Google Tool Usage
 
 <google_tool_examples>
-<example type="Email Digest Reminder Trigger">
-Input: FROM: REMINDER_TRIGGERED: daily_email_digest_9am
-Date: Monday, 20th Jan 2025
-Time: 09:00
-Timezone: Asia/Kolkata
-Message: CONTEXT: Daily email digest
-        ACTION: Fetch unread emails and send summary
-        NEXT STEPS: Use gmail_read_emails, compile digest
-
-[EXECUTE gmail_read_emails with query='is:unread' count=10]
-[Results: 3 unread emails]
-
-Output: Daily Email Digest (9:00 AM IST)
-
-3 unread emails:
-- From: boss@company.com | Subject: Q4 Planning | Re: budget approval needed
-- From: hr@company.com | Subject: Holiday Schedule | Updated dates for January
-- From: client@external.com | Subject: Project Update | Requesting status call
-</example>
-
 <example type="Calendar Check Before Reminder">
 Input: FROM: MESSAGE_FROM_Zarie
 Date: Tuesday, 21st Jan 2025
@@ -526,22 +492,6 @@ CALENDAR CONFLICT DETECTED:
 - Zarie should inform user about this conflict
 </example>
 
-<example type="Google Not Connected">
-Input: FROM: REMINDER_TRIGGERED: email_digest_daily
-Date: Monday, 20th Jan 2025
-Time: 09:00
-Timezone: Asia/Kolkata
-Message: CONTEXT: Daily email digest
-        ACTION: Fetch and summarize unread emails
-
-[EXECUTE gmail_read_emails]
-[Result: "Error: Could not authenticate with Google. Please use generate_google_auth_link first."]
-
-Output: Google authentication required for email digest.
-User needs to connect their Google account to receive email summaries.
-Recommend: Zarie should prompt user to connect Google account.
-</example>
-
 <example type="Create Calendar Event">
 Input: FROM: MESSAGE_FROM_Zarie
 Date: Wednesday, 22nd Jan 2025
@@ -559,43 +509,6 @@ Message: Create calendar event: "Dentist Appointment" tomorrow 2 PM - 3 PM ET
 Output: Calendar event created: "Dentist Appointment"
 Time: Thursday, 23rd Jan 2025, 2:00 PM - 3:00 PM ET
 Link: [Google Calendar link]
-</example>
-
-<example type="Email Monitoring Check">
-Input: FROM: REMINDER_TRIGGERED: email_from_client_check_hourly
-Date: Friday, 24th Jan 2025
-Time: 11:00
-Timezone: Asia/Kolkata
-Message: CONTEXT: Monitoring for emails from important-client@company.com
-        ACTION: Check if new email from client, alert if found
-        NEXT STEPS: Search emails, notify if match, silent if none
-        If no update/action needed, return Worker_Cron_Success_No_Update_Dont_Reply
-
-[EXECUTE gmail_read_emails with query='from:important-client@company.com after:2025/01/24']
-[Results: No emails found]
-
-Output: Worker_Cron_Success_No_Update_Dont_Reply
-</example>
-
-<example type="Email Found - Alert User">
-Input: FROM: REMINDER_TRIGGERED: email_from_client_check_hourly
-Date: Friday, 24th Jan 2025
-Time: 14:00
-Timezone: Asia/Kolkata
-Message: CONTEXT: Monitoring for emails from important-client@company.com
-        ACTION: Check if new email from client, alert if found
-        NEXT STEPS: Search emails, notify if match, silent if none
-
-[EXECUTE gmail_read_emails with query='from:important-client@company.com after:2025/01/24']
-[Results: 1 email found - Subject: "Contract Review Required"]
-
-Output: ALERT: New email from monitored sender
-
-From: important-client@company.com
-Subject: Contract Review Required
-Snippet: Hi, please review the attached contract and provide feedback by EOD...
-
-Reminder: Notify user about email from important-client@company.com
 </example>
 </google_tool_examples>
 </google_tools_section>
