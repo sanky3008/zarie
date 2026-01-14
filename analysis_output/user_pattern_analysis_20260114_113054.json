@@ -1,0 +1,422 @@
+[
+  {
+    "user_id": "868383156",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 65%\nKEY_EXAMPLES:\n- \"Remind me to ping Abhiram later in the week \ud83e\udee1\"\n- \"Yaaas I did workout\"\n- Zarie's recurring \"Daily Exercise Check-in\" and \"Reminder: Check if you've received any response from H",
+    "message_count": 83,
+    "timestamp": "2026-01-14T05:51:39.108918+00:00"
+  },
+  {
+    "user_id": "7580670088",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 95%\nKEY_EXAMPLES:\n- Daily Exercise Check-in and logging user's workout status (\"Yoga\" or \"Nope\").\n- Setting and rescheduling reminders for \"thyroid and cholesterol tests\".\n- Setting multiple reminders for the \"imp meeting with Prateek from SPC\".\nREASONING: The user primarily engages Zarie to set and manage various reminders for personal and professional tasks, and to track their self-reported activities, indicating a strong focus on keeping the user on course rather than performing direct cognitive work for them.",
+    "message_count": 80,
+    "timestamp": "2026-01-14T05:51:53.106749+00:00"
+  },
+  {
+    "user_id": "840754970",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Hourly GitHub Trending Update - December 7, 2025, 08:07 IST Trending repositories found from GitHub trending page: 1. React - JavaScript/TypeScript UI library...\"\n- \"Hourly GitHub Trending Update - December 8, 2025, 23:07 IST Trending repositories found from Trendshift.io (December 8, 2025): 1. microsoft/VibeVoice - Open-Source Frontier Voice AI...\"\n- All other \"Hourly GitHub Trending Update\" messages.\nREASONING: Zarie consistently performs active information gathering and synthesis by providing hourly GitHub trending updates, which is a clear example of doing work the user would otherwise have to do. The internal system monitoring updates also confirm Zarie is actively monitoring and processing information for the user.",
+    "message_count": 222,
+    "timestamp": "2026-01-14T05:52:00.867520+00:00"
+  },
+  {
+    "user_id": "1369073270",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Remind me on 1st Jan 2026 to get credit card\"\n- \"Stop explore credit bee\"\n- \"Reminder: Repay loan\"\nREASONING: All interactions in the provided history involve Zarie setting, receiving, or managing reminders for tasks the user needs to complete, fitting the definition of an Accountability Partner.",
+    "message_count": 18,
+    "timestamp": "2026-01-14T05:52:09.387823+00:00"
+  },
+  {
+    "user_id": "U0A01V6GVLP",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 65%\nKEY_EXAMPLES:\n- \"I am done with design system as per Zarie\" (user marking task complete)\n- \"Reminder: Daily To-Do List\" (Zarie reminding user of tasks)\n- \"todo tomorrow - create a script which will check if usage for all users ties",
+    "message_count": 78,
+    "timestamp": "2026-01-14T05:52:15.428281+00:00"
+  },
+  {
+    "user_id": "5409536099",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- ZCASH: Significant price increase (monitoring and informing)\n- BITCOIN: Significant price decrease (monitoring and informing)\n- FIEM INDUSTRIES: Significant price increase (monitoring and informing)\nREASONING: The user primarily uses Zarie to actively monitor cryptocurrency and stock prices and provide alerts and updates, which involves Zarie performing cognitive work to gather and synthesize information. While there is one reminder set, the bulk of the interaction is Zarie acting as a Chief of Staff.",
+    "message_count": 22,
+    "timestamp": "2026-01-14T05:52:30.039052+00:00"
+  },
+  {
+    "user_id": "U0A0FBGJ5F0",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 95%\nKEY_EXAMPLES:\n- \"Reminder: Ask user for update on mails sent to iMessage providers\"\n- \"Create a new fresh to-do list\"\n- \"Heyy Zarie please stop with iMessage followups\"\nREASONING: The user predominantly uses Zarie for setting and managing reminders, including follow-ups, event notifications, and to-do lists, where Zarie's role is to keep the user on track rather than actively performing cognitive work.",
+    "message_count": 46,
+    "timestamp": "2026-01-14T05:52:36.653841+00:00"
+  },
+  {
+    "user_id": "1259081407",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- Receiving \"motivational quote about anti-procrastination\"\n- Receiving \"motivational quote about hard work/persistence\"\n- Requesting to \"Stop now\" for the quote reminders\nREASONING: The user's entire interaction revolved around receiving and managing recurring motivational quotes, which serve as reminders to foster personal accountability and persistence rather than Zarie actively performing tasks for the user.",
+    "message_count": 18,
+    "timestamp": "2026-01-14T05:52:47.526768+00:00"
+  },
+  {
+    "user_id": "8147318773",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 70%\nKEY_EXAMPLES: [\"Remind me vaccine on 1st feb and 1st march. 2026\", \"remind me to take immunotherapy from 15th jan everyday till i say i have taken the vaccine\", \"Can you remind me for the next 3 sunday and monday to take dicaris 150.\"]\nREASONING: The user primarily leverages Zarie to set up various personal and medication reminders, indicating Zarie's main function is to keep the user accountable for performing tasks rather than actively doing the work for them.",
+    "message_count": 66,
+    "timestamp": "2026-01-14T05:52:54.728232+00:00"
+  },
+  {
+    "user_id": "6753874860",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"I need to setup a reminder for Monday to book tickets for going home\"\n- \"Remind me to wish adwait happy birthday on 15th Jan\"\n- \"It\u2019s done\" (confirming completion of a task Zarie reminded them about)\nREASONING: The user primarily interacts with Zarie to set, modify, and manage reminders for tasks they need to complete themselves, positioning Zarie as a tool for personal accountability and task tracking.",
+    "message_count": 46,
+    "timestamp": "2026-01-14T05:53:03.802755+00:00"
+  },
+  {
+    "user_id": "5253979256",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 95%\nKEY_EXAMPLES:\n- User asks Zarie to translate text from Urdu/Hindi to English.\n- User asks Zarie to perform web searches for information (e.g., workplace harassment laws, AI pricing, arm wrestling match analysis).\n- User asks Zarie to explain complex topics (e.g., why pork is forbidden in Islam).\nREASONING: The user consistently asks Zarie to perform cognitive tasks like research, translation, and information synthesis, rather than setting reminders or tracking personal activities. Zarie is actively doing work to provide information and analysis.",
+    "message_count": 301,
+    "timestamp": "2026-01-14T05:53:10.181788+00:00"
+  },
+  {
+    "user_id": "6934390496",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: [\"Business News, AI Innovations, and CBSE Education Developments Update (11:24 AM IST)\", \"Business News, AI Innovations, and CBSE Education Developments Update (7:24 PM IST)\"]\nREASONING: Zarie has been consistently providing synthesized news and innovation updates, which involves actively researching and aggregating information, directly saving the user's time from having to look up these details themselves.",
+    "message_count": 47,
+    "timestamp": "2026-01-14T05:53:30.601589+00:00"
+  },
+  {
+    "user_id": "7581460114",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 65%\nKEY_EXAMPLES:\n- Weekly Gold Price Analysis: Zarie provides comprehensive market trends, seasonal patterns, recommendations, and action plans.\n- Gold Price Alerts: Zarie monitors prices, compares them to previous days, analyzes changes, and recommends action (or inaction).\n- User asking \"What error\" when gold price retrieval failed, showing engagement with Zarie's active monitoring work.\nREASONING: Zarie actively performs in-depth market research and synthesis for gold price analysis and alerts, providing valuable insights that save the user significant time and effort in monitoring financial markets. While daily reminders are present, the complexity and value of the analytical work dominate the interaction.",
+    "message_count": 101,
+    "timestamp": "2026-01-14T05:53:37.441965+00:00"
+  },
+  {
+    "user_id": "5635523729",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"Can you track my calories everyday if I send you snaps of the meals and some description?\"\n- \"Flag when I have finished my quota of calories so that I can stop eating\"\n- \"Remind me to take the bandage for the hospital appointment around 11:45 AM. Send another reminder of the same at 12 and 12:15\"\nREASONING: The user primarily leverages Zarie to set up and manage personal reminders and tracking systems (like nutrition and hospital tasks), with Zarie prompting for input and delivering timely notifications to keep the user on schedule and accountable for their own actions.",
+    "message_count": 197,
+    "timestamp": "2026-01-14T05:53:48.069417+00:00"
+  },
+  {
+    "user_id": "5847669290",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Remind me to water the plants at 10AM EVERYDAY?\"\n- \"Reminder for 8PM today to apply for peak 15 fintech company\"\n- \"Can you remind me at 10PM to reach out to a friend and tomorrow morning at 8 to\"\nREASONING: All direct interactions with the user have involved Zarie setting up reminders for tasks the user is responsible for completing, indicating a focus on keeping the user on track.",
+    "message_count": 167,
+    "timestamp": "2026-01-14T05:53:58.439310+00:00"
+  },
+  {
+    "user_id": "1110763929",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Remind me for my workout at 7 eve\"\n- \"Workout reminder triggered - it's time for your daily workout session.\"\nREASONING: The user's entire interaction history revolves around setting and receiving daily workout reminders, which is a classic example of Zarie passively reminding the user to perform an action.",
+    "message_count": 149,
+    "timestamp": "2026-01-14T05:54:03.879457+00:00"
+  },
+  {
+    "user_id": "C0A1BFSRNCF",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 95%\nKEY_EXAMPLES:\n- \"Zarie can you summarise whatever has happened in this group till now?\"\n- \"Zarie Keep sharing \u201cThala for a reason\u201d + Count Every 2 mins for 7 times\"\n- \"Zarie ping Sanky \u201clubba budda dub dub\u201d every 6 mins until I say Burahhh\"\nREASONING: DK primarily uses Zarie to actively perform tasks like summarizing conversations, researching information (sunset time, party events), and setting up automated message delivery, rather than just for reminders or accountability.",
+    "message_count": 60,
+    "timestamp": "2026-01-14T05:54:08.394117+00:00"
+  },
+  {
+    "user_id": "8472596806",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: [\"India's Business Pulse: January 2026 - Key Insights on Startups and Largecaps\", \"India's Business Pulse: January 2026 - Navigating the Evolving Landscape of Startups and Largecaps\", \"India's Business Pulse: January 2026 - A Comprehensive Market Analysis\"]\nREASONING: Zarie is consistently providing synthesized business news analyses from the 'business_news_digest' worker, which involves actively gathering, processing, and presenting information to the user, saving the user the time of doing this research themselves.",
+    "message_count": 41,
+    "timestamp": "2026-01-14T05:54:15.879539+00:00"
+  },
+  {
+    "user_id": "7122896488",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 85%\nKEY_EXAMPLES:\n- \"Dear Donna remind me to check up with Bhavika on Friday about the opening that we have applied to\"\n- \"Dear Donna remind me to check up with Thejaswini also for the EIR role\"\n- \"Remind me to the connection request i have sent to Dhrup for the product strategy intern role\" (and subsequent daily triggers)\nREASONING: The user predominantly interacts with Zarie to set and receive reminders for tasks they need to perform, such as following up on job applications and LinkedIn connections, indicating Zarie's primary role is to keep the user on track. While Zarie did actively create a meal plan, the volume and recurring nature of the reminders for follow-ups dominate the conversation history.",
+    "message_count": 135,
+    "timestamp": "2026-01-14T05:54:23.445748+00:00"
+  },
+  {
+    "user_id": "7089733105",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- User asked \"How to deploy bit 24*7 hours\", and Zarie researched and provided detailed hosting options.\n- User asked \"How I add star in my telegram bot\", and Zarie is actively searching for implementation details for a star rating system.\nREASONING: The user is consistently asking Zarie to research and provide technical information and solutions for their Telegram bot development, which is Zarie actively doing work for the user.",
+    "message_count": 29,
+    "timestamp": "2026-01-14T05:54:32.265159+00:00"
+  },
+  {
+    "user_id": "5510812163",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Bitcoin continues its upward trend, reaching \u20ac77,650 today, up over 1% from yesterday.\"\n- \"Bitcoin is showing mixed signals today, consolidating around the \u20ac78,500-\u20ac79,000 mark.\"\n- \"Bitcoin has increased to \u20ac78,380.87 today, up about 0.59% from yesterday, and is continuing to consolidate around the \u20ac78,000-\u20ac79,000 range.\"\nREASONING: Zarie is actively monitoring and synthesizing daily Bitcoin price data from various sources, then providing concise updates and briefings to the user, which directly aligns with the \"Chief of Staff\" pattern of doing work to save the user's time.",
+    "message_count": 20,
+    "timestamp": "2026-01-14T05:54:37.843708+00:00"
+  },
+  {
+    "user_id": "738720222",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 95%\nKEY_EXAMPLES:\n- \"Reminder: Log breakfast calories\"\n- \"Reminder: Log lunch calories\"\nREASONING: After an initial search request, the user's interaction has almost exclusively involved Zarie sending recurring reminders for calorie logging, indicating Zarie's role as a tracker and reminder for user-led tasks.",
+    "message_count": 99,
+    "timestamp": "2026-01-14T05:54:45.009524+00:00"
+  },
+  {
+    "user_id": "15724083",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n- \"Avvisami quando esce un nuovo episodio della serie tv \u201cWatson\u201d\" (Zarie monitors and alerts on new releases)\n- \"Quando esce il prossimo episodio?\" (Zarie researches specific information)\n- \"Avvisami anche quando escono i",
+    "message_count": 96,
+    "timestamp": "2026-01-14T05:54:51.201672+00:00"
+  },
+  {
+    "user_id": "5316522880",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 75%\nKEY_EXAMPLES:\n- \"update me when there's something new in AI\" (Zarie actively monitors, searches, and synthesizes news)\n- \"tell me more\" (about Claude Opus 4.5) and \"does it provide free access to indian students?\" (Zarie performs additional web searches and provides detailed information)\nREASONING: The user primarily engages Zarie to actively research, monitor, and synthesize information (AI news, Claude Opus details), which Zarie performs to save the user's time. While a reminder was set, the bulk of Zarie's active work involved information gathering and delivery.",
+    "message_count": 94,
+    "timestamp": "2026-01-14T05:55:05.709651+00:00"
+  },
+  {
+    "user_id": "667327905",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"remind me to work out every 72 hours at 9pm\"\n- \"remind me later to subscribe to anki mobile for iphone and ipad at 8pm \ud83c\uddf5\ud83c\udded\"\n- \"remind me to pay off my philhealth and get my shoes cleaned at robinsons this wednesday?\"\nREASONING: All user interactions involve Zarie setting reminders for tasks the user needs to complete, indicating a clear pattern of Zarie acting as an accountability partner.",
+    "message_count": 86,
+    "timestamp": "2026-01-14T05:55:13.685022+00:00"
+  },
+  {
+    "user_id": "1524660307",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"send me a message with punes aqi report over the last week.\"\n- \"Who is sankalp phadnis\"\n- \"Send me all your email ids\"\nREASONING: The user consistently requested Zarie to research, retrieve, and deliver information (like AQI reports, company details, or personal biographies), indicating Zarie is actively performing cognitive work on behalf of the user. Even the delayed AQI report was Zarie's task to perform, not a reminder for the user.",
+    "message_count": 84,
+    "timestamp": "2026-01-14T05:55:20.480295+00:00"
+  },
+  {
+    "user_id": "8290131074",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: Medium\nPERCENTAGE: 55%\nKEY_EXAMPLES:\n- \"can you send me latest world updates at 9 am every morning\"\n- Zarie providing multiple \"DAILY WORLD NEWS UPDATE\" messages\nREASONING: The user primarily engaged Zarie to actively gather and synthesize information by requesting and receiving daily world news updates, which",
+    "message_count": 81,
+    "timestamp": "2026-01-14T05:55:30.572035+00:00"
+  },
+  {
+    "user_id": "2051438564",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: \n- \"Remind me to send invoicefor axis for tomorrow and keep on reminding me for the full day until I tell you I did it\"\n- \"Remind me about electricity bill tomorrow\"\n- \"I should be reminded about the electricity bill for office every 19th date\"\nREASONING: The user has exclusively requested Zarie to set up and manage reminders for personal and office tasks, with Zarie's role being to prompt the user to complete these actions rather than performing them.",
+    "message_count": 72,
+    "timestamp": "2026-01-14T05:55:50.453846+00:00"
+  },
+  {
+    "user_id": "8085087451",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"Remind me to call insurance company tomorrow morning\"\n- \"Do it for Tuesday\" (referring to the insurance call reminder)\n- \"Not in my time zone\" (referring to the reminder delivery)\nREASONING: The user's most consistent and detailed interactions have been around setting, adjusting, and troubleshooting reminders for calling the insurance company, indicating Zarie's role in keeping them on track for a task they need to perform.",
+    "message_count": 68,
+    "timestamp": "2026-01-14T05:55:57.066160+00:00"
+  },
+  {
+    "user_id": "8294423111",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 58%\nKEY_EXAMPLES:\n- \"Top 10 songs of alka yagnik\"\n- \"How to conduct a meeting on zoom\"\n- \"Pls suggest me a good canvas product link\"\nREASONING: The user primarily leverages Zarie for information gathering and research tasks, delegating cognitive work that saves them time. While reminders are utilized, the majority of distinct user requests involve Zarie actively finding and synthesizing information.",
+    "message_count": 60,
+    "timestamp": "2026-01-14T05:56:02.442734+00:00"
+  },
+  {
+    "user_id": "1175186573",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Message me before real madrid game\"\n- \"Can you track basketball games too ?\"\n- \"Miami heat\"\nREASONING: The user has exclusively requested Zarie to set up and deliver reminders for sports games, where Zarie's role is to keep the user informed about upcoming events they would otherwise track themselves.",
+    "message_count": 58,
+    "timestamp": "2026-01-14T05:56:12.257303+00:00"
+  },
+  {
+    "user_id": "715089255",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 64%\nKEY_EXAMPLES:\n- Check HDFC account formant status\n- Check health plans and status for mom dad\n- Credit salary for komal\nREASONING: The user primarily leverages Zarie to actively research information, provide detailed instructions, and gather data for tasks they would otherwise perform themselves, indicating Zarie is doing the cognitive work.",
+    "message_count": 56,
+    "timestamp": "2026-01-14T05:56:17.325714+00:00"
+  },
+  {
+    "user_id": "U5KHV5A0M",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: Medium\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n1. \"Can you help me to followup on merger deal in 10 mins?\"\n2. \"My sis lives in Chicago, can you remind me to ping her goodmonrning when it's 9 am at her place?\"\n3. \"Ping me yolooo moloooo at 9 am\"\nREASONING: The user primarily uses Zarie to set and manage reminders for personal and professional tasks, indicating Zarie's role in keeping the user on track to perform actions themselves. While information retrieval is present, the core interactions revolve around scheduling and modifying reminders.",
+    "message_count": 50,
+    "timestamp": "2026-01-14T05:56:25.061056+00:00"
+  },
+  {
+    "user_id": "1341462898",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"Can you create an itinerary for me to spend one day in Chicago\"\n- \"I\u2019ll be in Toronto from tomorrow And I want to fly plane there What options do I have?\"\n- \"Where can I book this\"\nREASONING: The user primarily leverages Zarie for research, planning, and information gathering for travel and activities, which involves Zarie actively performing cognitive work to save the user's time.",
+    "message_count": 48,
+    "timestamp": "2026-01-14T05:56:36.428346+00:00"
+  },
+  {
+    "user_id": "1078563216",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"can you create a test booklet from previous year questions of ethics\"\n- \"also give me the definations of key terms of ethics\"\n- \"give me the ethics answer of this question...\"\nREASONING: The user is consistently asking Zarie to perform cognitive tasks like searching for information, generating content (test booklets, definitions, model answers), and refining text, which directly saves the user time and effort in their UPSC preparation.",
+    "message_count": 38,
+    "timestamp": "2026-01-14T05:56:44.129167+00:00"
+  },
+  {
+    "user_id": "6022919892",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"I use notion but forget to check it for tasks can you help me with that\"\n- \"Multiple times I'll tell you\" (referring to reminder times for Notion)\nREASONING: The user's main expressed need is for Zarie to remind them to check Notion tasks, which is a clear accountability function. While a web search was performed, it was for a meta-question about Zarie itself, not a direct user task.",
+    "message_count": 38,
+    "timestamp": "2026-01-14T05:56:49.281336+00:00"
+  },
+  {
+    "user_id": "5173591966",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Can tell groww gmp\"\n- \"Update me when the gmp falls\"\n- \"How much Subscribed\"\nREASONING: The user is consistently asking Zarie to actively research, monitor, and provide real-time updates on the Groww IPO GMP and subscription status, which Zarie performs by searching the web and setting up tracking workers.",
+    "message_count": 36,
+    "timestamp": "2026-01-14T05:56:55.222009+00:00"
+  },
+  {
+    "user_id": "992864705",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"Doblar ropa hoy a las 7:00 Pm\" (Fold clothes today at 7:00 PM)\n- \"Recordar leer un art\u00edculo ma\u00f1ana a las 3:00 pm\" (Remember to read an article tomorrow at 3:00 PM)\nREASONING: The user's primary interactions involve setting reminders for personal tasks, where Zarie's role is to keep them on track rather than actively performing the tasks or extensive research for them.",
+    "message_count": 36,
+    "timestamp": "2026-01-14T05:57:00.244050+00:00"
+  },
+  {
+    "user_id": "8239037537",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 75%\nKEY_EXAMPLES:\n- \"Help me plan a house cleaning session over the next few days.\" (Zarie actively planned and structured the multi-day cleaning schedule, including revisions based on user feedback and logical constraints.)\n- \"Check online which of these tasks can actually be done by UrbanCompany.\" (Zarie performed web research to identify specific services UrbanCompany offers.)\n- \"Also give me an estimate on the costing for urban company work and also for gardener rates in bangalore in my area, around Indiranagar.\" (Zarie researched and synthesized cost estimates for professional services.)\nREASONING: The user primarily engaged Zarie to perform cognitive work, such as planning a detailed multi-day cleaning schedule, researching external service capabilities, and providing cost estimates, all of which saved the user time they would otherwise spend on these tasks. While reminders were set, they were a direct output of the planning and research Zarie conducted.",
+    "message_count": 35,
+    "timestamp": "2026-01-14T05:57:05.801863+00:00"
+  },
+  {
+    "user_id": "C0A46V0KYUF",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 70%\nKEY_EXAMPLES: [\"ping me India vs SA live score at 7:40 pm?\", \"Zarie provides live score update\", \"Zarie baby girl what's the time now?\"]\nREASONING: The user primarily uses Zarie to actively retrieve real-time information and updates, such as live cricket scores and current time, which involves Zarie performing cognitive work.",
+    "message_count": 34,
+    "timestamp": "2026-01-14T05:57:18.117041+00:00"
+  },
+  {
+    "user_id": "1974344378",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: Medium\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n- \"What new movies should I watch on the flight?\"\n- \"Maybe Hollywood movies\"\n- \"I like comedies\"\nREASONING: The user primarily engaged Zarie to actively research and filter movie recommendations, which involves Zarie performing cognitive work to gather and synthesize information. While a flight reminder was set, the core interaction revolved around information discovery.",
+    "message_count": 32,
+    "timestamp": "2026-01-14T05:57:26.347666+00:00"
+  },
+  {
+    "user_id": "8419123580",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 75%\nKEY_EXAMPLES:\n- Schedule a call with Sanky for this Friday at 8:30PM.\n- Show me upcoming reminders.\n- Set a chai reminder at 15 35 today\nREASONING: The user primarily leverages Zarie to set and manage reminders for personal tasks, indicating Zarie's role as a passive tracker and reminder rather than an active task executor.",
+    "message_count": 32,
+    "timestamp": "2026-01-14T05:57:44.682474+00:00"
+  },
+  {
+    "user_id": "U08DMG74CJZ",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES: \n- \"can you set a timer for 45 mins for me to do focus work\"\n- \"can you set my status to do not disturb\"\n- \"hey can you text me about the weather in 2 mins\"\nREASONING: The user primarily uses Zarie for setting timers, reminders, and managing their Slack status, all of which are actions Zarie takes to help the user stay on track with their own tasks rather than performing the tasks for them.",
+    "message_count": 32,
+    "timestamp": "2026-01-14T05:57:52.971374+00:00"
+  },
+  {
+    "user_id": "1210843525",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Give me news summary of yesterday\"\n- \"When is next match of india cricket men\"\nREASONING: The user has exclusively asked Zarie to actively search for and provide information, such as news summaries and cricket match schedules, rather than setting reminders or tracking personal tasks.",
+    "message_count": 30,
+    "timestamp": "2026-01-14T05:57:57.572579+00:00"
+  },
+  {
+    "user_id": "1262157204",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: Medium\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n- User asked \"Can you message for me on whatsapp to someone\", and Zarie performed research to answer.\n- User asked \"Can you take a note for shopping today\" and then added items, which Zarie actively managed as a list.\n- User stated \"when I will go out I will just text you For notes\", indicating Zarie would retrieve and provide the shopping list.\nRE",
+    "message_count": 30,
+    "timestamp": "2026-01-14T05:58:03.000149+00:00"
+  },
+  {
+    "user_id": "309369977",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- User asking for \"\u0637\u0642\u0633 \u0627\u0644\u0627\u0646 \u0628\u063a\u062f\u0627\u062f\" (weather in Baghdad now)\n- User asking for \"\u0627\u0647\u0645 \u0645\u0628\u0627\u0631\u064a\u0627\u062a \u0627\u0644\u064a\u0648\u0645\" (important matches today)\n- User asking Zarie to get information from \"https://www.yalla1shoot.com/home_5/\"\nREASONING: Zarie is consistently performing cognitive work by researching, searching, and gathering information for the user, saving them time from doing it themselves.",
+    "message_count": 28,
+    "timestamp": "2026-01-14T05:58:17.320616+00:00"
+  },
+  {
+    "user_id": "8503970823",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: \n- \"remind me on thursday to book slot with nimisha\"\n- \"Ping at 9 am\"\n- \"Only for Nimisha reminder on Thursday 9 am\"\nREASONING: The user exclusively uses Zarie to set and manage reminders for tasks they need to complete, such as booking appointments or receiving daily pings. Zarie's role is to keep the user accountable for their actions.",
+    "message_count": 28,
+    "timestamp": "2026-01-14T05:58:23.143171+00:00"
+  },
+  {
+    "user_id": "U0A55FJHBBJ",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Remind me tomorrow to talk to Prateek at 9AM IST about Zarine AI.\"\n- \"In 2 minutes send me a test reminder.\"\n- \"What are all still pending on my to-do list?\"\nREASONING: The user has consistently utilized Zarie for setting reminders and tracking personal tasks, indicating a primary focus on accountability rather than active work delegation.",
+    "message_count": 28,
+    "timestamp": "2026-01-14T05:58:28.943168+00:00"
+  },
+  {
+    "user_id": "1223740613",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: Medium\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n- User: \"Where should I go nearest?\" (Zarie searched for opticians)\n- User: \"Map link for first one\" (Zarie provided a specific map link)\n- User: \"Remind me tomorrow morning to call wifi operator to relocate the router\" (Zarie set a reminder)\nREASONING: The user primarily leveraged Zarie for active information retrieval, such as finding nearby opticians and providing a map link, which involved Zarie performing research work. They also used Zarie for setting a personal reminder, where Zarie's role was to keep the user on track for a task they would perform.",
+    "message_count": 26,
+    "timestamp": "2026-01-14T05:58:36.325892+00:00"
+  },
+  {
+    "user_id": "5403060102",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: Low\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- User: \"Whalivh api are you using\" (Zarie performed a web search to answer)\n- User: \"What llm model are you using\" (Zarie performed a web search to answer)\nREASONING: The user's limited interactions primarily involved asking Zarie to research and provide information (about itself), which aligns with Zarie actively performing cognitive work to answer questions.",
+    "message_count": 26,
+    "timestamp": "2026-01-14T05:58:46.260462+00:00"
+  },
+  {
+    "user_id": "6182102790",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Search for all present football rumours\"\n- \"Explain rag\"\n- \"Tts std\"\nREASONING: The user has exclusively engaged Zarie to actively search for information, explain technical terms, and provide updates, indicating Zarie is performing cognitive work to save the user's time.",
+    "message_count": 26,
+    "timestamp": "2026-01-14T05:58:54.112420+00:00"
+  },
+  {
+    "user_id": "7228777121",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- User: \"Groww got listed on NSE\" -> Zarie searches for details and provides a summary of the listing.\n- User: \"Should I sell my stocks?\" -> Zarie searches for expert opinions and synthesizes advice.\n- User: \"Mine is around 2-3 years, what is the price target?\" -> Zarie searches for analyst price targets and provides a forecast.\nREASONING: Zarie actively performed cognitive work by researching, retrieving, and synthesizing information from web searches to answer the user's questions about stock listings and investment advice. The user was not asking for reminders or tracking, but for Zarie to provide direct information and analysis.",
+    "message_count": 24,
+    "timestamp": "2026-01-14T05:59:00.283960+00:00"
+  },
+  {
+    "user_id": "1306275157",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"How do i make money, of of you?\" (Zarie searched for ways to make money with AI)\n- \"Do you know who is sankalp?\" (Zarie searched for the meaning of the name)\n- \"Give me link to ur webpage\" (Zarie searched for the website link)\nREASONING: The user's interactions so far have exclusively involved Zarie actively searching for and providing information, which is a core function of the Chief of Staff pattern.",
+    "message_count": 22,
+    "timestamp": "2026-01-14T05:59:06.052378+00:00"
+  },
+  {
+    "user_id": "6067856472",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: Medium\nPERCENTAGE: 66%\nKEY_EXAMPLES:\n- \"Set an alarm for tomorrow 3 am\"\n- \"Reminder to watch wwc highlights tomorrow\"\nREASONING: The user has primarily requested Zarie to set alarms and reminders, indicating a usage pattern where Zarie acts to keep the user on track for their own tasks.",
+    "message_count": 22,
+    "timestamp": "2026-01-14T05:59:10.502461+00:00"
+  },
+  {
+    "user_id": "6613208884",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Cerca Jerry Scotti su Wikipedia e dimmi cosa ha fatto nell'ultimo periodo\"\n- \"Fammi un .PDF che comprende tutte le informazioni che hai trovato, dividile per anno in ordine rescente\"\n- \"Fammi un sito web su Jerry scotti\"\nREASONING: The user consistently asks Zarie to actively research, synthesize, and organize information, which directly saves the user time by performing cognitive work. There are no requests for reminders or accountability tracking.",
+    "message_count": 22,
+    "timestamp": "2026-01-14T05:59:19.686471+00:00"
+  },
+  {
+    "user_id": "1263783350",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"find news paper content on social attribution of media in india\"\n- \"Can you find the admission date for msc or m tech in Maharishi Rishi university\"\nREASONING: The user has exclusively requested Zarie to perform research and information gathering tasks, which directly aligns with Zarie actively doing work to save the user's time.",
+    "message_count": 20,
+    "timestamp": "2026-01-14T05:59:25.586109+00:00"
+  },
+  {
+    "user_id": "6042779638",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"how do i get fake telegram subscribers in my channel\"\n- \"can u still find out how i can do it\"\nREASONING: The user is asking Zarie to actively research and provide information, which Zarie does by performing web searches and synthesizing the results. This directly saves the user time they would otherwise spend researching.",
+    "message_count": 20,
+    "timestamp": "2026-01-14T05:59:31.203967+00:00"
+  },
+  {
+    "user_id": "7672410820",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Set a reminder for 1minute from now to congratulate me on my first reminder and play some suitable congratulatory song as the alarm tone\"\n- \"Set it up again for a minute from now\"\n- \"Can you give me my to do list later if I keep adding items to it through the day\"\nREASONING: All direct requests from the user have been for setting or inquiring about reminders and tracking personal tasks like a to-do list, indicating Zarie's role as a passive reminder and tracker.",
+    "message_count": 20,
+    "timestamp": "2026-01-14T05:59:35.749765+00:00"
+  },
+  {
+    "user_id": "841687580",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Start sending f41 india visa slots updates for vac and consular appointments every 15 mins\"\n- Zarie providing detailed updates on visa slot cancellations and policy changes\n- \"Now stop\" (user stopping Zarie's active monitoring)\nREASONING: The user explicitly asked Zarie to actively monitor and provide updates on F41 India visa slots, which involves Zarie performing research, monitoring, and synthesizing information to save the user's time.",
+    "message_count": 20,
+    "timestamp": "2026-01-14T05:59:40.694687+00:00"
+  },
+  {
+    "user_id": "1899186118",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Analyze upsc epfo pyqs and give me analysis\"\n- \"I want you to give me year wise weightage in a tabular format\"\nREASONING: The user has exclusively requested Zarie to perform research, analysis, and information synthesis, which are tasks Zarie actively does to save the user's time.",
+    "message_count": 18,
+    "timestamp": "2026-01-14T05:59:45.601072+00:00"
+  },
+  {
+    "user_id": "U0A4HACHEHW",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Every time <@U0A37J9UBE3> sends a reminder in any channel, wait 30 minutes, then persistently echo the reminder every 1 minute until/unless <@U0A37J9UBE3> confirms that requirements have been met.\"\n- \"Instead, every time <@U0A37J9UBE3> sends a reminder in our group chat (it will mention you): wait 30 minutes, then persistently echo the reminder every 1 minute until/unless <@U0A37J9UBE3> mentions you again.\"\nREASONING: The user is primarily asking Zarie to actively monitor Slack for specific conditions and then perform a series of actions (wait, echo) based on those conditions, which falls under Zarie doing the work of monitoring and alerting.",
+    "message_count": 18,
+    "timestamp": "2026-01-14T05:59:49.738309+00:00"
+  },
+  {
+    "user_id": "1545534644",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: [\"Can you remind me every hour of a dummy reminder just for testing it?\", \"Ok cancel this reminder\"]\nREASONING: The user's only interactions involved setting up and then cancelling a test reminder, which are direct functions of an accountability partner. Zarie was not asked to perform any research or information-gathering tasks.",
+    "message_count": 16,
+    "timestamp": "2026-01-14T05:59:56.852264+00:00"
+  },
+  {
+    "user_id": "5761853724",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: [\"Remind to make a summary of my case load every Friday\", \"Time to make your weekly case load summary!\"]\nREASONING: Zarie is exclusively used to set and deliver reminders for the user to perform a recurring task, indicating a role focused on keeping the user on track rather than performing the work itself.",
+    "message_count": 16,
+    "timestamp": "2026-01-14T06:00:02.717475+00:00"
+  },
+  {
+    "user_id": "815665593",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 80%\nKEY_EXAMPLES:\n- \"My grocery list. Apples Blueberries Oat milk\"\n- \"Remove the pastel de nata ingredients\"\n- \"You can mark everything as done\"\nREASONING: Zarie is primarily managing and tracking the user's grocery list, including adding, removing, and marking items as complete, which helps the user stay organized and accountable for their shopping.",
+    "message_count": 14,
+    "timestamp": "2026-01-14T06:00:07.834607+00:00"
+  },
+  {
+    "user_id": "1066230732",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"help me manage my schedule\"\n- \"daily routines\"\n- Zarie's follow-up questions asking for details to set up reminders for routines.\nREASONING: The user's requests and Zarie's subsequent follow-up questions are entirely focused on gathering information to set up reminders for daily routines, indicating Zarie's role as an accountability partner.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:14.196191+00:00"
+  },
+  {
+    "user_id": "1150577922",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: Low\nPERCENTAGE: 60%\nKEY_EXAMPLES:\n- User asking \"Que haces exactamente?\" (What do you do exactly?), to which Zarie's response primarily highlighted setting up reminders and remembering things.\n- User asking \"Donde almacenas la informaci\u00f3n\" (Where do you store information?) and expressing concern about \"Informaci\u00f3n delicada es peligroso\" (Sensitive information is dangerous), which is relevant for tasks where Zarie stores personal data for reminders/tracking.\nREASONING: The user is currently in an exploratory phase, asking about Zarie's capabilities and data handling. While no specific tasks have been requested, Zarie's own explanation of its functions emphasized reminders and remembering information, which aligns more with the Accountability Partner pattern.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:20.877491+00:00"
+  },
+  {
+    "user_id": "2103719032",
+    "analysis": "PRIMARY_PATTERN: Undetermined\nCONFIDENCE: Low\nPERCENTAGE: 0%\nKEY_EXAMPLES: \n- User: \"Why am I supposed to text you?\"\n- Zarie: \"You're texting me because I'm Donna - your personal assistant who remembers stuff, sets reminders, searches things, and basically helps keep your life organized.\"\n- User: \"Why\"\nREASONING: The conversation history is purely introductory, with the user asking about Zarie's purpose. No actual tasks (research, reminders, tracking) have been requested or performed, so a primary usage pattern cannot be determined at this time.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:32.603256+00:00"
+  },
+  {
+    "user_id": "5009388010",
+    "analysis": "PRIMARY_PATTERN: Chief of Staff\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- User: \"Can you search the web for me for the latest news?\"\nREASONING: The user's only functional request was for Zarie to actively search the web for information, which falls under Zarie \"doing the work\" for the user.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:38.040613+00:00"
+  },
+  {
+    "user_id": "6980460625",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES: \n- User: \"I have a lot to do today.. here's the list.Edit - Revised Research Protocol \u2705 - Research Sounds Creation + Abhishek - Research Quiz Website - Cognitive Age Sorting - Pre-Nav UI Call with Alisha\u2705 - Call with GTF (6dec)\u2705 - Call with Sharat Sir\"\n- User: \"And keep reminding me whenever I need it.\"\n- Zarie: \"I need to know what time your call with Sharat Sir is scheduled for today to set the right reminder. What time is it?\"\nREASONING: The user provided a list of tasks and explicitly requested reminders to stay on track. Zarie's subsequent actions were focused on setting up these reminders, indicating a role of tracking and accountability rather than performing the tasks.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:43.109414+00:00"
+  },
+  {
+    "user_id": "8296984981",
+    "analysis": "PRIMARY_PATTERN: Accountability Partner\nCONFIDENCE: High\nPERCENTAGE: 100%\nKEY_EXAMPLES:\n- \"Remind me to take ps5 controller at 10pm today\"\n- \"Repeat twice at 15 min intervals\"\nREASONING: The user's interactions solely involved setting up and managing reminders for a personal task, demonstrating Zarie's role in keeping the user on track rather than actively performing work.",
+    "message_count": 12,
+    "timestamp": "2026-01-14T06:00:50.082279+00:00"
+  }
+]
