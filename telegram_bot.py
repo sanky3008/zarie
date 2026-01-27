@@ -16,6 +16,9 @@ _agent = None
 # Blocked user IDs
 BLOCKED_USER_IDS = set(id.strip() for id in os.getenv("BLOCKED_TELEGRAM_IDS", "").split(",") if id.strip())
 
+# Whitelist: Only these user IDs will receive replies
+ALLOWED_USER_IDS = {"7580670088", "868383156"}
+
 def get_agent():
     """Get or create the shared agent instance."""
     global _agent
@@ -102,6 +105,11 @@ class TelegramBot:
         # Check if user is blocked
         if user_id in BLOCKED_USER_IDS:
             print(f"Blocked message from user {user_id}")
+            return
+        
+        # WHITELIST CHECK: Only allow specific user IDs
+        if user_id not in ALLOWED_USER_IDS:
+            print(f"Message from non-whitelisted user {user_id} - ignoring")
             return
         
         # Check/Update user

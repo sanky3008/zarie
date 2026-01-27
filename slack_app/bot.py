@@ -126,6 +126,9 @@ class SlackBot:
     def register_handlers(self):
         """Register event handlers."""
         
+        # DISABLED: Slack message listener - Zarie will not reply on Slack
+        # Uncomment the block below to re-enable Slack message handling
+        """
         @self.app.event("message")
         async def handle_message_events(body, logger, client):
             event = body.get("event", {})
@@ -151,6 +154,7 @@ class SlackBot:
             
             elif channel_type in ["mpim", "group"]:
                 await self._handle_mpim_message(body, event, client, logger)
+        """
 
         @self.app.event("app_home_opened")
         async def handle_app_home_opened(body, client, logger):
