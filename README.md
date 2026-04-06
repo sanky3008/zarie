@@ -4,6 +4,8 @@ An AI accountability partner that helps you stay on top of your commitments, hab
 
 Zarie lives in Telegram and Slack. You tell it what you want to stay accountable to, and it checks in with you, sends reminders, and celebrates your wins.
 
+**[Read the technical deep dive: How Zarie Works Under the Hood](https://sankalpphadnis.com/writing/how-zarie-works.html)**
+
 ## How it works
 
 Zarie uses a dual-agent architecture:
